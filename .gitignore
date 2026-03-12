@@ -1,3 +1,19 @@
 .DS_Store
-
 .direnv
+
+# Nix
+result
+result-*
+
+# OpenTofu / Terraform
+tofu/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+tfplan
+*.backup
+tofu/config.tf.json
+
+# Secrets
+*.tfvars
+!*.tfvars.example

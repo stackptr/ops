@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.zx.dev/main https://cache.zx.dev/ops
+            extra-trusted-public-keys = main:mu0jkxdJTGWC3djDSEQb3rvZgqlhA8WVMulcTo5IW6c=
+
+      - name: Configure Attic cache
+        run: |
+          nix profile install --inputs-from . attic#attic-client
+          attic login ops https://cache.zx.dev ${{ secrets.ATTIC_TOKEN }}
+          attic use ops:main
+
+      - name: Build Terranix config
+        run: nix build .#terraformConfiguration -o tofu/config.tf.json
+
+      - name: Push to Attic
+        if: github.ref == 'refs/heads/main'
+        run: |
+          attic push ops:main ./tofu/config.tf.json
+          nix build .#devShells.x86_64-linux.default -o ./result-devshell
+          attic push ops:main ./result-devshell
