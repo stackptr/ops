@@ -22,7 +22,7 @@ jobs:
         run: |
           nix profile install --inputs-from . attic#attic-client
           attic login ops https://cache.zx.dev ${{ secrets.ATTIC_TOKEN }}
-          attic use ops:main
+          attic use ops:ops
 
       - name: Build Terranix config
         run: nix build .#terraformConfiguration -o tofu/config.tf.json
@@ -30,6 +30,6 @@ jobs:
       - name: Push to Attic
         if: github.ref == 'refs/heads/main'
         run: |
-          attic push ops:main ./tofu/config.tf.json
+          attic push ops:ops ./tofu/config.tf.json
           nix build .#devShells.x86_64-linux.default -o ./result-devshell
-          attic push ops:main ./result-devshell
+          attic push ops:ops ./result-devshell
