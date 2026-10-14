@@ -33,3 +33,16 @@ jobs:
           attic push ops:ops ./tofu/config.tf.json
           nix build .#devShells.x86_64-linux.default -o ./result-devshell
           attic push ops:ops ./result-devshell
+
+  notify:
+    needs: validate
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - uses: stackptr/actions/slack-notify@8f86bf2d6b69d2225bee5726b080fc6ce1066bd9 # v1.0.0
+        with:
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          status: failure
+          failed-jobs: true
