@@ -4,29 +4,31 @@ tofu_dir := "tofu"
 build:
   nix build .#terraformConfiguration -o {{tofu_dir}}/config.tf.json
 
-# Initialize OpenTofu (runs build first)
-init: build
-  tofu -chdir={{tofu_dir}} init
+# Initialize OpenTofu (runs build first). Recipes that touch state need
+# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (an R2 API token for the state
+# bucket), TF_VAR_state_endpoint, and TF_VAR_state_passphrase.
+init *args: build
+  tofu -chdir={{tofu_dir}} init {{args}}
 
 # Show execution plan
-plan: build
-  tofu -chdir={{tofu_dir}} plan
+plan *args: build
+  tofu -chdir={{tofu_dir}} plan {{args}}
 
 # Apply infrastructure changes
-apply: build
-  tofu -chdir={{tofu_dir}} apply
+apply *args: build
+  tofu -chdir={{tofu_dir}} apply {{args}}
 
 # Destroy managed infrastructure
-destroy: build
-  tofu -chdir={{tofu_dir}} destroy
+destroy *args: build
+  tofu -chdir={{tofu_dir}} destroy {{args}}
 
 # Display generated Terraform JSON
 show-config: build
   cat {{tofu_dir}}/config.tf.json | jq
 
 # Validate OpenTofu config
-validate: build
-  tofu -chdir={{tofu_dir}} validate
+validate *args: build
+  tofu -chdir={{tofu_dir}} validate {{args}}
 
 # Format Nix files
 fmt:
