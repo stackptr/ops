@@ -1,0 +1,142 @@
+name: Infrastructure
+
+# Plan on pull requests, apply on merge to main, and check daily for drift.
+#
+# Credentials: repository secrets hold a read-only R2 token, used by plans
+# (which skip the state lock so they never write). The `production`
+# environment, restricted to main, overrides the same secret names with a
+# read-write token, so only the apply job can change state.
+
+on:
+  pull_request:
+    paths:
+      - infrastructure/**
+      - flake.nix
+      - flake.lock
+      - Justfile
+      - .github/workflows/infrastructure.yml
+  push:
+    branches: [main]
+    paths:
+      - infrastructure/**
+      - flake.nix
+      - flake.lock
+      - Justfile
+      - .github/workflows/infrastructure.yml
+  schedule:
+    - cron: "23 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: nix develop --command bash -euo pipefail {0}
+
+env:
+  TF_IN_AUTOMATION: "1"
+  TF_INPUT: "0"
+
+jobs:
+  plan:
+    # Fork PRs get no secrets, so there is nothing to plan with
+    if: >-
+      github.event_name != 'push' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      group: plan-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.STATE_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.STATE_SECRET_ACCESS_KEY }}
+      TF_VAR_state_endpoint: ${{ vars.STATE_ENDPOINT }}
+      TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Init
+        run: just init
+
+      - name: Plan
+        id: plan
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set +e
+          tofu -chdir=tofu plan -no-color -lock=false -detailed-exitcode > plan.txt 2>&1
+          code=$?
+          set -e
+          case $code in
+            0) result="no changes" ;;
+            2) result="changes" ;;
+            *) result="failed" ;;
+          esac
+          {
+            echo "### OpenTofu plan: $result"
+            echo
+            echo "<details><summary>Output for ${SHA::7}</summary>"
+            echo
+            echo '```'
+            head -c 60000 plan.txt
+            echo '```'
+            echo '</details>'
+          } > plan.md
+          cat plan.md >> "$GITHUB_STEP_SUMMARY"
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file plan.md --edit-last --create-if-none
+
+      # A plan with changes is the point of a PR, but on a scheduled or manual
+      # run it means live infrastructure no longer matches main
+      - name: Check result
+        env:
+          CODE: ${{ steps.plan.outputs.exitcode }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [[ $CODE == 1 ]]; then
+            echo "::error::tofu plan failed"
+            exit 1
+          fi
+          if [[ $CODE == 2 && $EVENT != pull_request ]]; then
+            echo "::error::Drift: live infrastructure differs from main"
+            exit 1
+          fi
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: apply
+      cancel-in-progress: false
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.STATE_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.STATE_SECRET_ACCESS_KEY }}
+      TF_VAR_state_endpoint: ${{ vars.STATE_ENDPOINT }}
+      TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Init
+        run: just init
+
+      - name: Apply
+        run: just apply -auto-approve
