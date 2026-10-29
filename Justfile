@@ -34,6 +34,14 @@ diff rev="origin/main": build
   base=$(nix build "git+file://$PWD?rev=$(git rev-parse '{{rev}}')#terraformConfiguration" --no-link --print-out-paths)
   diff -u --label '{{rev}}' --label HEAD <(jq -S . "$base") <(jq -S . {{tofu_dir}}/config.tf.json) || [ $? -eq 1 ]
 
+# Seal a secret for infrastructure/github/repos.nix: reads the value on stdin
+# and prints the ciphertext for environments.<env>.secrets.<NAME>
+seal repo env:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  key=$(gh api "repos/stackptr/{{repo}}/environments/{{env}}/secrets/public-key" --jq .key)
+  python3 scripts/seal.py "$key"
+
 # Validate OpenTofu config
 validate *args: build
   tofu -chdir={{tofu_dir}} validate {{args}}

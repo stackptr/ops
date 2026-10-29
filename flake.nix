@@ -44,7 +44,11 @@
           packages = [
             pkgs.jq
             pkgs.just
-            pkgs.opentofu
+            # `just seal`
+            (pkgs.python3.withPackages (ps: [ps.pynacl]))
+            # Providers come from nixpkgs, so flake.lock pins them and
+            # `tofu init` never downloads one from the registry
+            (pkgs.opentofu.withPlugins (p: [p.integrations_github]))
           ];
         };
 
