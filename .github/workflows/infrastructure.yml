@@ -18,14 +18,8 @@ name: Infrastructure
 # OPS_APP_CLIENT_ID (variable) and OPS_APP_PRIVATE_KEY (secret).
 
 on:
+  # Every PR, so the required `check` always reports
   pull_request:
-    paths:
-      - infrastructure/**
-      - checks/**
-      - flake.nix
-      - flake.lock
-      - Justfile
-      - .github/workflows/infrastructure.yml
   push:
     branches: [main]
     paths:
