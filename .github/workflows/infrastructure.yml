@@ -12,13 +12,8 @@ name: Infrastructure
 # - Daily: plan only, failing if live infrastructure differs from main.
 
 on:
+  # Every PR, so the required `check` always reports
   pull_request:
-    paths:
-      - infrastructure/**
-      - flake.nix
-      - flake.lock
-      - Justfile
-      - .github/workflows/infrastructure.yml
   push:
     branches: [main]
     paths:
