@@ -32,6 +32,7 @@
       systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin"];
       perSystem = {
         pkgs,
+        self',
         system,
         ...
       }: {
@@ -39,6 +40,18 @@
           inherit system;
           modules = [./infrastructure];
         };
+
+        # The GitHub baseline's invariants, over the rendered config
+        checks.baseline =
+          pkgs.runCommand "baseline" {
+            nativeBuildInputs = [pkgs.jq];
+            apps = builtins.toJSON (import ./infrastructure/github/apps.nix);
+            repos = builtins.toJSON (builtins.attrNames (import ./infrastructure/github/repos.nix));
+          } ''
+            jq -r -f ${./checks/baseline.jq} --argjson apps "$apps" --argjson repos "$repos" \
+              ${self'.packages.terraformConfiguration}
+            touch $out
+          '';
 
         devShells.default = pkgs.mkShell {
           packages = [

@@ -21,6 +21,7 @@ on:
   pull_request:
     paths:
       - infrastructure/**
+      - checks/**
       - flake.nix
       - flake.lock
       - Justfile
