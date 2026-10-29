@@ -26,6 +26,14 @@ destroy *args: build
 show-config: build
   cat {{tofu_dir}}/config.tf.json | jq
 
+# Diff the generated config against another revision's (default: origin/main).
+# Needs no credentials: this is the PR preview in CI.
+diff rev="origin/main": build
+  #!/usr/bin/env bash
+  set -euo pipefail
+  base=$(nix build "git+file://$PWD?rev=$(git rev-parse '{{rev}}')#terraformConfiguration" --no-link --print-out-paths)
+  diff -u --label '{{rev}}' --label HEAD <(jq -S . "$base") <(jq -S . {{tofu_dir}}/config.tf.json) || [ $? -eq 1 ]
+
 # Validate OpenTofu config
 validate *args: build
   tofu -chdir={{tofu_dir}} validate {{args}}

@@ -42,6 +42,7 @@
 
         devShells.default = pkgs.mkShell {
           packages = [
+            pkgs.jq
             pkgs.just
             pkgs.opentofu
           ];
