@@ -28,4 +28,21 @@
     id = null;
     permissions = "Contents and Pull requests read/write";
   };
+
+  # ops's plan credential, its key in ops's `plan` environment: runs plans,
+  # the daily drift check and the repository-secret check. Installed on every
+  # repo in ./repos.nix. Never a bypass actor.
+  teleopsis = {
+    id = null;
+    permissions = "Administration, Actions, Environments and Secrets read";
+  };
+
+  # ops's apply credential, its key in ops's `production` environment behind
+  # my approval. Administration write is close to admin on every repo it's
+  # installed on (rulesets, deploy keys), so it's installed only on repos in
+  # ./repos.nix. Never a bypass actor.
+  teleozyme = {
+    id = null;
+    permissions = "Administration, Environments and Actions read/write; Secrets read";
+  };
 }
