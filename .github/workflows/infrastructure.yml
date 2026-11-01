@@ -173,6 +173,8 @@ jobs:
           tofu -chdir=tofu plan -no-color -lock=false -detailed-exitcode -out=tfplan > plan.txt 2>&1
           code=$?
           set -e
+          # Also in the log, which (unlike the summary) the API can read
+          cat plan.txt
           case $code in
             0) result="no changes" ;;
             2) result="changes" ;;
