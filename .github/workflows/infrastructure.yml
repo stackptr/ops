@@ -9,7 +9,13 @@ name: Infrastructure
 #   config differs from the base branch's.
 # - Push to main, or run by hand: plan, then apply that saved plan once
 #   approved in `production`.
-# - Daily: plan only, failing if live infrastructure differs from main.
+# - Daily: plan only, failing if live infrastructure differs from main, and
+#   check the baseline's repos for repository-level secrets.
+# Failures on main post to #alerts.
+#
+# GitHub credentials are two GitHub Apps installed on the account: a read-only
+# one in `plan` and a read-write one in `production`, each as
+# OPS_APP_CLIENT_ID (variable) and OPS_APP_PRIVATE_KEY (secret).
 
 on:
   # Every PR, so the required `check` always reports
@@ -144,6 +150,14 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Mint GitHub token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.OPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Init
         run: just init
 
@@ -152,6 +166,8 @@ jobs:
       # as an artifact.
       - name: Plan
         id: plan
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set +e
           tofu -chdir=tofu plan -no-color -lock=false -detailed-exitcode -out=tfplan > plan.txt 2>&1
@@ -220,10 +236,71 @@ jobs:
           name: tfplan
           path: tofu
 
+      - name: Mint GitHub token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.OPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Init
         run: just init
 
       # Applies exactly the plan approved above; if state changed since, tofu
       # rejects it as stale
       - name: Apply
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: tofu -chdir=tofu apply tfplan
+
+  # OpenTofu can't see secrets it doesn't manage, so check that no repo in the
+  # baseline has repository-level secrets, which every branch's workflows get
+  secrets:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: plan
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mint GitHub token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.OPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Check for repository secrets
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          found=0
+          for repo in $(nix eval --json --file infrastructure/github/repos.nix --apply builtins.attrNames | jq -r '.[]'); do
+            names=$(gh api "repos/$OWNER/$repo/actions/secrets" --paginate --jq '.secrets[].name' | paste -sd, -)
+            if [[ -n $names ]]; then
+              echo "::error::$repo has repository secrets: $names"
+              found=1
+            fi
+          done
+          exit $found
+
+  notify:
+    needs: [plan, apply, secrets]
+    if: failure() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: plan
+    permissions:
+      actions: read
+    steps:
+      - uses: stackptr/actions/slack-notify@8f86bf2d6b69d2225bee5726b080fc6ce1066bd9 # v1.0.0
+        with:
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel: "#alerts"
+          status: failure
+          failed-jobs: true

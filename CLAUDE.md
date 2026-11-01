@@ -8,6 +8,9 @@ Infrastructure as code for my personal GitHub and cloud services. Terranix modul
 
 - `infrastructure/`: Terranix modules; `default.nix` is the root and imports the rest
 - `infrastructure/state.nix`: R2 state backend and client-side state encryption
+- `infrastructure/github/`: GitHub as the stackptr account. `repos.nix` is the one list of repos that get the baseline; `baseline.nix` is the policy applied to each; `apps.nix` records the GitHub Apps, their IDs and permissions
+- `checks/baseline.jq`: the baseline's invariants, checked over the rendered config by `nix flake check`
+- `scripts/seal.py`: seals a secret to a GitHub public key, for `just seal`
 - `tofu/`: OpenTofu working directory; `config.tf.json` is generated (gitignored)
 - `.github/workflows/infrastructure.yml`: credential-free checks and a rendered-config diff on PRs; plan, then approved apply, on main; daily drift check
 - `.github/workflows/ci.yml`: builds the config; on main only, pushes it to the Attic cache from the main-only `attic` environment, with the attic client from a fixed rev (bump it by hand)
@@ -20,6 +23,7 @@ just init             # build, then tofu init
 just plan             # build, then tofu plan; extra args pass through (just plan -lock=false)
 just show-config      # pretty-print the generated JSON
 just diff [rev]       # diff the generated JSON against another revision's (default origin/main); needs no credentials
+just seal <repo> <env> # seal a secret (stdin) for repos.nix; needs `gh` logged in
 just fmt              # alejandra
 ```
 
@@ -36,8 +40,21 @@ Anything that touches state needs `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY
 
 - State is in R2, locked with `use_lockfile`, and encrypted with OpenTofu state encryption (pbkdf2 + AES-GCM, enforced for state and plans). Losing the passphrase means losing the state.
 - Branch and PR CI gets no credentials: `tofu plan` runs provider code and Nix evaluation of whatever it's given. PRs get `nix fmt --check`, `nix flake check`, and `just diff` against the base branch as their preview. Never add a repository-level secret, and never reference an environment from a job that runs on branches.
-- Two environments, both limited to main, hold the same secret names: `plan` (read-only R2 token, no reviewer) and `production` (read-write token, me as required reviewer). Plans use `-lock=false`, since the read-only token can't take the lock, and save the plan as an artifact; it's encrypted, because plan encryption is enforced. `apply` applies exactly that plan, and tofu rejects it as stale if state changed in between.
+- Two environments, both limited to main with admin bypass off, hold the same secret names: `plan` (read-only R2 token, no reviewer) and `production` (read-write token, me as required reviewer). Plans use `-lock=false`, since the read-only token can't take the lock, and save the plan as an artifact; it's encrypted, because plan encryption is enforced. `apply` applies exactly that plan, and tofu rejects it as stale if state changed in between.
 - Backend credentials have to come from `AWS_*` env vars: OpenTofu rejects sensitive values in backend config. A provider that reads `AWS_*` (the AWS provider) must take its credentials in its provider block so it doesn't pick up the R2 token.
+
+## GitHub baseline
+
+The baseline (`infrastructure/github/baseline.nix`) is what makes it safe to install the agents' app (teleomycete) on a repo: four rulesets (Require CI, Require approval, Agent branches, Agent-only branches), read-only `GITHUB_TOKEN` that can't approve PRs, secrets only in main-only environments with no admin bypass (deploy environments also need my approval), and OIDC subjects that include the ref. See stackptr/ops#3, stackptr/rc#763, and rc's CLAUDE.md "GitHub apps and rulesets" for how the three apps and four rulesets fit together.
+
+- `repos.nix`, `baseline.nix`, `apps.nix` and `checks/baseline.jq` set the agents' own guardrails. A change to any of them is a policy change: say why in the PR description.
+- Bypass actors: only the admin role, teleotrope (on Require approval and Agent branches, for repos with `updaterBypass`) and teleomycete (on Agent-only branches). teleoid is never one. `checks/baseline.jq` enforces this as an allowlist, so extend the allowlist only on purpose. Never set `can_approve_pull_request_reviews = true`.
+- Add a repo to `repos.nix` before the agents' app goes on it. It needs `requiredChecks`, since every repo gets Require CI. Import anything it already has (`rulesetIds`, `adopt` on environments) rather than creating duplicates.
+- App installations and permissions are managed by hand in each app's settings and recorded in `apps.nix`; keep the record in step.
+- Secrets go in `repos.nix` as sealed values: `printf %s "$value" | just seal <repo> <env>`. Only GitHub can decrypt them, so they're safe to commit, and state holds only the ciphertext. Never put a plaintext secret in Nix, a variable, or state.
+- OpenTofu can't see repository-level secrets it doesn't manage; the workflow's `secrets` job checks for them daily and alerts #alerts.
+- The provider comes from nixpkgs (`opentofu.withPlugins` in `flake.nix`), so `flake.lock` is its supply chain. Write against the locked provider's schema (check `nix eval` of `terraform-providers.integrations_github.version`), not the registry's latest docs.
+- CI authenticates as two GitHub Apps through `GITHUB_TOKEN`: read-only in `plan`, read-write in `production`. `github_app_installation_repository` doesn't work with app tokens, and a fine-grained PAT can add repos to an installation but not list them, so installations stay manual rather than putting a classic `repo` token in CI.
 
 ## Terranix gotchas
 
@@ -71,6 +88,7 @@ To test backend or workflow changes without R2, run MinIO as the S3 endpoint (`N
 - In cloud sessions, use this scheme even when the session assigns a `claude/…` branch name.
 - PR title: `type: short description`, e.g. `feat: manage cloudflare dns`. PRs are squash-merged, so the title becomes the commit message.
 - PR description: a brief summary of what changed, what to test or verify, and any secrets or manual setup the change needs.
+- When work diverges from what its issue stipulates (an item skipped or done differently, or scope added or dropped), comment on the issue at the time, saying what changed and why, so the issue stays an accurate record.
 
 ## Committing
 
