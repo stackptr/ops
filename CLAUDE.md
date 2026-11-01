@@ -10,7 +10,7 @@ Infrastructure as code for my personal GitHub and cloud services. Terranix modul
 - `infrastructure/state.nix`: R2 state backend and client-side state encryption
 - `tofu/`: OpenTofu working directory; `config.tf.json` is generated (gitignored)
 - `.github/workflows/infrastructure.yml`: credential-free checks and a rendered-config diff on PRs; plan, then approved apply, on main; daily drift check
-- `.github/workflows/ci.yml`: builds the config and pushes it to the Attic cache
+- `.github/workflows/ci.yml`: builds the config; on main only, pushes it to the Attic cache from the main-only `attic` environment, with the attic client from a fixed rev (bump it by hand)
 
 ## Common Commands
 
@@ -28,6 +28,7 @@ Anything that touches state needs `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY
 ## Guardrails
 
 - Merging to main plans against live infrastructure, and the `apply` job applies that saved plan once I approve it in the `production` environment. Don't merge a PR, or approve a deployment, unless asked.
+- Approving `production` runs that commit's code, not just its plan. When a push changes `.github/`, `flake.*`, `Justfile`, `scripts/` or `checks/`, the plan job flags it on the run page; review those changes before approving.
 - Don't run `just apply` or `just destroy` locally; CI applies. Local apply is break-glass only, and only when asked.
 - The repo is public, so plan output in PR comments and Actions logs is public. Mark anything secret as `sensitive` so tofu redacts it.
 

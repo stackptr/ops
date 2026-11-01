@@ -113,6 +113,33 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Approving `production` runs this commit's code, not just the plan. Say
+      # so on the run page when the push changed what runs with credentials.
+      - name: Flag changes to privileged code
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ $BEFORE =~ ^0+$ ]] || ! git fetch -q --no-tags --depth=1 origin "$BEFORE"; then
+            echo "::warning::Couldn't diff against the previous commit; review the whole push before approving"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BEFORE" HEAD -- .github flake.nix flake.lock Justfile scripts checks)
+          if [[ -n $changed ]]; then
+            echo "::warning::This push changes code that runs with credentials: $(paste -sd' ' <<< "$changed")"
+            {
+              echo "### Changes to code that runs with credentials"
+              echo
+              echo "Approving \`production\` runs this code, not only the plan. Review it first:"
+              echo
+              while IFS= read -r file; do echo "- \`$file\`"; done <<< "$changed"
+              echo
+              echo "[Diff]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}

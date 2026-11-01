@@ -8,6 +8,17 @@ build:
 # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (an R2 API token for the state
 # bucket), TF_VAR_state_endpoint, and TF_VAR_state_passphrase.
 init *args: build
+  #!/usr/bin/env bash
+  set -euo pipefail
+  # Fail with the missing name, not an S3 error, unless there's no backend
+  if [[ " {{args}} " != *" -backend=false "* ]]; then
+    for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY TF_VAR_state_endpoint TF_VAR_state_passphrase; do
+      if [[ -z ${!var:-} ]]; then
+        echo "error: $var is not set (in CI it comes from the environment's STATE_* secrets and the STATE_ENDPOINT variable)" >&2
+        exit 1
+      fi
+    done
+  fi
   tofu -chdir={{tofu_dir}} init {{args}}
 
 # Show execution plan
