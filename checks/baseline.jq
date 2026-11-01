@@ -51,6 +51,10 @@ def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-on
           or $policies[.key].branch_pattern != "main")
       | "\(.value.repository): environment \(.value.environment) must be limited to main"
     ),
+    ( $environments[]
+      | select(.value.can_admins_bypass != false)
+      | "\(.value.repository): environment \(.value.environment) must not let admins bypass its protections"
+    ),
     ( .resource.github_actions_secret // {} | keys[]
       | "repository-level secret \(.): secrets go in environments"
     ),

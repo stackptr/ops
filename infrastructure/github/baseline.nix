@@ -19,9 +19,9 @@
 #   Deletions and force-pushes stay allowed, for agents rebasing.
 #
 # Also: GITHUB_TOKEN is read-only by default and can't approve PRs; secrets
-# live only in environments, every environment is limited to main, and
-# deploy environments need my approval; repos using OIDC put the ref in the
-# subject claim.
+# live only in environments, every environment is limited to main with no
+# admin bypass, and deploy environments need my approval; repos using OIDC
+# put the ref in the subject claim.
 #
 # The invariants (who may bypass what, every repo has every ruleset) are
 # checked over the rendered config by checks/baseline.jq, without
@@ -162,6 +162,9 @@ in {
       {
         repository = repo;
         environment = env;
+        # Otherwise anything with admin rights, cloud sessions acting as me
+        # included, could skip the reviewer and (possibly) the branch policy
+        can_admins_bypass = false;
         deployment_branch_policy = {
           protected_branches = false;
           custom_branch_policies = true;
