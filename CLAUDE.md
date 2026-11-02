@@ -53,7 +53,7 @@ The baseline (`infrastructure/github/baseline.nix`) is what makes it safe to ins
 - Secrets go in `repos.nix` as sealed values: `printf %s "$value" | just seal <repo> <env>`. Only GitHub can decrypt them, so they're safe to commit, and state holds only the ciphertext. Never put a plaintext secret in Nix, a variable, or state.
 - OpenTofu can't see repository-level secrets it doesn't manage; the workflow's `secrets` job checks for them daily and alerts #alerts.
 - The provider comes from nixpkgs (`opentofu.withPlugins` in `flake.nix`), so `flake.lock` is its supply chain. Write against the locked provider's schema (check `nix eval` of `terraform-providers.integrations_github.version`), not the registry's latest docs.
-- CI authenticates as two GitHub Apps through `GITHUB_TOKEN`: read-only in `plan`, read-write in `production`. `github_app_installation_repository` doesn't work with app tokens, and a fine-grained PAT can add repos to an installation but not list them, so installations stay manual rather than putting a classic `repo` token in CI.
+- CI authenticates as two GitHub Apps through `GITHUB_TOKEN`: teleopsis in `plan`, teleozyme in `production`. teleopsis has Administration write, not read: GitHub shows a ruleset's bypass actors only to credentials that can edit it, and read-only plans showed them missing and couldn't detect drift in them. So the `plan` environment can edit GitHub settings; R2 state writes and every apply still need `production`. `github_app_installation_repository` doesn't work with app tokens, and a fine-grained PAT can add repos to an installation but not list them, so installations stay manual rather than putting a classic `repo` token in CI.
 
 ## Terranix gotchas
 

@@ -32,9 +32,15 @@
   # ops's plan credential, its key in ops's `plan` environment: runs plans,
   # the daily drift check and the repository-secret check. Installed on every
   # repo in ./repos.nix. Never a bypass actor.
+  #
+  # Administration is write, not read, only because GitHub shows a ruleset's
+  # bypass actors to credentials that can edit it. Read-only, every plan
+  # showed them as missing and drift in who may bypass went undetected
+  # (stackptr/ops#3). So `plan` can edit settings too; R2 writes and every
+  # apply still go through `production`.
   teleopsis = {
     id = null;
-    permissions = "Administration, Actions, Environments and Secrets read";
+    permissions = "Administration read/write; Actions, Environments and Secrets read";
   };
 
   # ops's apply credential, its key in ops's `production` environment behind

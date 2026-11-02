@@ -2,8 +2,8 @@ name: Infrastructure
 
 # Branches and PRs get no credentials. `tofu plan` runs provider code and Nix
 # evaluation of whatever it's given, so only main reaches the two main-only
-# environments: `plan` (read-only credentials, no reviewer) and `production`
-# (write credentials, me as required reviewer).
+# environments: `plan` (no reviewer; read-only state access) and
+# `production` (me as required reviewer; writes state and applies).
 #
 # - PR: check formatting and the flake, and comment with how the rendered
 #   config differs from the base branch's.
@@ -13,9 +13,10 @@ name: Infrastructure
 #   check the baseline's repos for repository-level secrets.
 # Failures on main post to #alerts.
 #
-# GitHub credentials are two GitHub Apps installed on the account: a read-only
-# one in `plan` and a read-write one in `production`, each as
-# OPS_APP_CLIENT_ID (variable) and OPS_APP_PRIVATE_KEY (secret).
+# GitHub credentials are two GitHub Apps installed on the account, teleopsis
+# in `plan` and teleozyme in `production`, each as OPS_APP_CLIENT_ID
+# (variable) and OPS_APP_PRIVATE_KEY (secret). teleopsis has Administration
+# write only so plans can see rulesets' bypass actors (apps.nix).
 
 on:
   # Every PR, so the required `check` always reports
