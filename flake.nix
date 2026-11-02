@@ -49,12 +49,15 @@
             touch $out
           '';
 
+        # `just seal` runs this through `nix run`, so it works from any shell
+        packages.seal = pkgs.writers.writePython3Bin "seal" {
+          libraries = [pkgs.python3Packages.pynacl];
+        } (builtins.readFile ./scripts/seal.py);
+
         devShells.default = pkgs.mkShell {
           packages = [
             pkgs.jq
             pkgs.just
-            # `just seal`
-            (pkgs.python3.withPackages (ps: [ps.pynacl]))
             # Providers come from nixpkgs, so flake.lock pins them and
             # `tofu init` never downloads one from the registry
             (pkgs.opentofu.withPlugins (p: [p.integrations_github]))

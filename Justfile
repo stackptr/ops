@@ -52,7 +52,7 @@ seal repo env name:
   #!/usr/bin/env bash
   set -euo pipefail
   key=$(gh api "repos/stackptr/{{repo}}/environments/{{env}}/secrets/public-key" --jq .key)
-  value=$(python3 scripts/seal.py "$key")
+  value=$(nix run .#seal -- "$key")
   file=infrastructure/github/sealed.json
   jq --arg r '{{repo}}' --arg e '{{env}}' --arg n '{{name}}' --arg v "$value" \
     '.[$r][$e][$n] = $v' "$file" > "$file.tmp"
