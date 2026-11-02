@@ -61,6 +61,12 @@ def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-on
     ( .resource.github_actions_environment_secret // {} | to_entries[]
       | select(.value | has("plaintext_value") or has("value"))
       | "secret \(.key): commit only sealed values (encrypted_value)"
+    ),
+    # A sealed box is 48 bytes plus the value, so 64 base64 characters (or
+    # fewer) means an empty value: a failed command piped into `just seal`
+    ( .resource.github_actions_environment_secret // {} | to_entries[]
+      | select((.value.encrypted_value // "") | length <= 64)
+      | "secret \(.key): sealed value is empty; seal it again"
     )
   ]
 | if . == [] then "baseline: ok" else (join("\n") + "\n" | halt_error(1)) end
