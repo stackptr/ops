@@ -45,7 +45,7 @@ Anything that touches state needs `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY
 
 ## GitHub baseline
 
-The baseline (`infrastructure/github/baseline.nix`) is what makes it safe to install the agents' app (teleomycete) on a repo: four rulesets (Require CI, Require approval, Agent branches, Agent-only branches), read-only `GITHUB_TOKEN` that can't approve PRs, secrets only in main-only environments with no admin bypass (deploy environments also need my approval), and OIDC subjects that include the ref. See stackptr/ops#3, stackptr/rc#763, and rc's CLAUDE.md "GitHub apps and rulesets" for how the three apps and four rulesets fit together.
+The baseline (`infrastructure/github/baseline.nix`) is what makes it safe to install the agents' app (teleomycete) on a repo: four rulesets (Require CI, Require approval, Agent branches, Agent-only branches), read-only `GITHUB_TOKEN` that can't approve PRs, secrets only in main-only environments with no admin bypass (deploy environments also need my approval, except rc's `spore`, which deploys main on a schedule), and OIDC subjects that include the ref. See stackptr/ops#3, stackptr/rc#763, and rc's CLAUDE.md "GitHub apps and rulesets" for how the three apps and four rulesets fit together.
 
 - `repos.nix`, `baseline.nix`, `apps.nix` and `checks/baseline.jq` set the agents' own guardrails. A change to any of them is a policy change: say why in the PR description.
 - Bypass actors: only the admin role, teleotrope (on Require approval and Agent branches, for repos with `updaterBypass`) and teleomycete (on Agent-only branches). teleoid is never one. `checks/baseline.jq` enforces this as an allowlist, so extend the allowlist only on purpose. Never set `can_approve_pull_request_reviews = true`.

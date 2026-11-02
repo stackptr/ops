@@ -57,10 +57,11 @@
         adopt = true;
         deploy = true;
       };
-      spore = {
-        adopt = true;
-        deploy = true;
-      };
+      # No reviewer: deploy.yml deploys main to spore daily so security fixes
+      # reach the internet-facing host without waiting on me, and a reviewer
+      # would hold every scheduled run. It still only runs main, so a deploy
+      # someone else starts could only do what the schedule does within a day.
+      spore.adopt = true;
       zeta = {
         adopt = true;
         deploy = true;
