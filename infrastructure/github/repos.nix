@@ -27,9 +27,10 @@
 #     read never sets `repository` or `environment`. Remove the ID once that
 #     apply lands: the policy it names is gone.
 #   - deploy: it deploys, so it also requires my approval
-#   - secrets.<NAME>: a value sealed to the environment's public key with
-#     `just seal <repo> <environment>`. Only GitHub can decrypt it, so it's
-#     safe to commit, and state holds only this ciphertext.
+#
+# An environment's secrets are in ./sealed.json, sealed to its public key by
+# `just seal <repo> <environment> <NAME>`. Only GitHub can decrypt them, so
+# they're safe to commit, and state holds only the ciphertext.
 {
   rc = {
     requiredChecks = map (host: "build (${host})") [
@@ -66,6 +67,11 @@
         adopt = true;
         deploy = true;
       };
+      # ci.yml's main-only push to the attic cache (ATTIC_TOKEN)
+      attic = {};
+      # Slack alerts from ci.yml, deploy.yml and port-scan.yml on main
+      # (SLACK_BOT_TOKEN)
+      notify = {};
     };
   };
 }

@@ -45,13 +45,19 @@ diff rev="origin/main": build
   base=$(nix build "git+file://$PWD?rev=$(git rev-parse '{{rev}}')#terraformConfiguration" --no-link --print-out-paths)
   diff -u --label '{{rev}}' --label HEAD <(jq -S . "$base") <(jq -S . {{tofu_dir}}/config.tf.json) || [ $? -eq 1 ]
 
-# Seal a secret for infrastructure/github/repos.nix: reads the value on stdin
-# and prints the ciphertext for environments.<env>.secrets.<NAME>
-seal repo env:
+# Seal a secret into infrastructure/github/sealed.json: reads the value on
+# stdin and stores it, sealed to the environment's public key, as
+# <repo>.<env>.<name>. The environment must already exist in GitHub.
+seal repo env name:
   #!/usr/bin/env bash
   set -euo pipefail
   key=$(gh api "repos/stackptr/{{repo}}/environments/{{env}}/secrets/public-key" --jq .key)
-  python3 scripts/seal.py "$key"
+  value=$(python3 scripts/seal.py "$key")
+  file=infrastructure/github/sealed.json
+  jq --arg r '{{repo}}' --arg e '{{env}}' --arg n '{{name}}' --arg v "$value" \
+    '.[$r][$e][$n] = $v' "$file" > "$file.tmp"
+  mv "$file.tmp" "$file"
+  echo "Sealed {{name}} for {{repo}}/{{env}} into $file" >&2
 
 # Validate OpenTofu config
 validate *args: build
