@@ -10,7 +10,7 @@ Infrastructure as code for my personal GitHub and cloud services. Terranix modul
 - `infrastructure/state.nix`: R2 state backend and client-side state encryption
 - `infrastructure/github/`: GitHub as the stackptr account. `repos.nix` is the one list of repos that get the baseline; `baseline.nix` is the policy applied to each; `apps.nix` records the GitHub Apps, their IDs and permissions; `sealed.json` holds environment secrets, sealed
 - `checks/baseline.jq`: the baseline's invariants, checked over the rendered config by `nix flake check`
-- `scripts/seal.py`: seals a secret to a GitHub public key, for `just seal`
+- `scripts/seal.py`: seals a secret to a GitHub public key; packaged with PyNaCl as the flake's `seal`, which `just seal` runs through `nix run`, so it works outside the dev shell
 - `tofu/`: OpenTofu working directory; `config.tf.json` is generated (gitignored)
 - `.github/workflows/infrastructure.yml`: credential-free checks and a rendered-config diff on PRs; plan, then approved apply, on main; daily drift check
 - `.github/workflows/ci.yml`: builds the config; on main only, pushes it to the Attic cache from the main-only `attic` environment, with the attic client from a fixed rev (bump it by hand)
