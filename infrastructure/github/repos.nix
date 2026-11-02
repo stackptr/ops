@@ -22,6 +22,10 @@
 #   - mainPolicyId: its existing `main` deployment branch policy, to import.
 #     Creating one where it already exists fails. List them with
 #     `gh api repos/stackptr/<repo>/environments/<env>/deployment-branch-policies`.
+#     The locked provider then replaces the imported policy once (deletes and
+#     recreates it, so for a few seconds no branch can deploy), because its
+#     read never sets `repository` or `environment`. Remove the ID once that
+#     apply lands: the policy it names is gone.
 #   - deploy: it deploys, so it also requires my approval
 #   - secrets.<NAME>: a value sealed to the environment's public key with
 #     `just seal <repo> <environment>`. Only GitHub can decrypt it, so it's
@@ -46,27 +50,20 @@
     updaterBypass = true;
     environments = {
       # App keys for approve.yml (teleoid) and update.yml (teleotrope)
-      # (approve had no branch policy; ops created its `main` one)
       approve.adopt = true;
-      update = {
-        adopt = true;
-        mainPolicyId = 64125768;
-      };
+      update.adopt = true;
       # deploy.yml, one per host
       glyph = {
         adopt = true;
         deploy = true;
-        mainPolicyId = 64122768;
       };
       spore = {
         adopt = true;
         deploy = true;
-        mainPolicyId = 64122731;
       };
       zeta = {
         adopt = true;
         deploy = true;
-        mainPolicyId = 64122797;
       };
     };
   };
