@@ -124,9 +124,22 @@
 
   forRepos = f: lib.concatMapAttrs f repos;
 
+  # Sealed secrets, written by `just seal`: { <repo>.<environment>.<NAME> =
+  # ciphertext; }. Each entry must name an environment in ./repos.nix.
+  sealed = let
+    all = lib.importJSON ./sealed.json;
+    unknown = lib.concatLists (lib.mapAttrsToList (repo: envs:
+      map (env: "${repo}/${env}")
+      (lib.filter (env: !(repos ? ${repo}.environments.${env})) (lib.attrNames envs)))
+    all);
+  in
+    if unknown == []
+    then all
+    else throw "sealed.json has secrets for environments not in repos.nix: ${lib.concatStringsSep ", " unknown}";
+
   forEnvironments = f:
     forRepos (repo: cfg:
-      lib.concatMapAttrs (env: envCfg: f repo env ({secrets = {};} // envCfg)) (cfg.environments or {}));
+      lib.concatMapAttrs (env: envCfg: f repo env (envCfg // {secrets = sealed.${repo}.${env} or {};})) (cfg.environments or {}));
 
   environment = repo: env: "\${github_repository_environment.${id repo}_${env}.environment}";
 in {

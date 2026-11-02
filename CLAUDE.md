@@ -8,7 +8,7 @@ Infrastructure as code for my personal GitHub and cloud services. Terranix modul
 
 - `infrastructure/`: Terranix modules; `default.nix` is the root and imports the rest
 - `infrastructure/state.nix`: R2 state backend and client-side state encryption
-- `infrastructure/github/`: GitHub as the stackptr account. `repos.nix` is the one list of repos that get the baseline; `baseline.nix` is the policy applied to each; `apps.nix` records the GitHub Apps, their IDs and permissions
+- `infrastructure/github/`: GitHub as the stackptr account. `repos.nix` is the one list of repos that get the baseline; `baseline.nix` is the policy applied to each; `apps.nix` records the GitHub Apps, their IDs and permissions; `sealed.json` holds environment secrets, sealed
 - `checks/baseline.jq`: the baseline's invariants, checked over the rendered config by `nix flake check`
 - `scripts/seal.py`: seals a secret to a GitHub public key, for `just seal`
 - `tofu/`: OpenTofu working directory; `config.tf.json` is generated (gitignored)
@@ -23,7 +23,7 @@ just init             # build, then tofu init
 just plan             # build, then tofu plan; extra args pass through (just plan -lock=false)
 just show-config      # pretty-print the generated JSON
 just diff [rev]       # diff the generated JSON against another revision's (default origin/main); needs no credentials
-just seal <repo> <env> # seal a secret (stdin) for repos.nix; needs `gh` logged in
+just seal <repo> <env> <NAME> # seal a secret (stdin) into sealed.json; needs `gh` logged in
 just fmt              # alejandra
 ```
 
@@ -51,7 +51,7 @@ The baseline (`infrastructure/github/baseline.nix`) is what makes it safe to ins
 - Bypass actors: only the admin role, teleotrope (on Require approval and Agent branches, for repos with `updaterBypass`) and teleomycete (on Agent-only branches). teleoid is never one. `checks/baseline.jq` enforces this as an allowlist, so extend the allowlist only on purpose. Never set `can_approve_pull_request_reviews = true`.
 - Add a repo to `repos.nix` before the agents' app goes on it. It needs `requiredChecks`, since every repo gets Require CI. Import anything it already has (`rulesetIds`, and `adopt` and `mainPolicyId` on environments) rather than creating duplicates. Creating a deployment branch policy that already exists fails with "Provider produced inconsistent result after apply … root object was present, but now absent"; import it by ID (`mainPolicyId`) instead. The locked provider (6.8.3) never sets `repository` or `environment` when it reads a policy, so the plan after an import replaces it once: it deletes and recreates the identical policy, and for a few seconds no branch can deploy (it fails closed). Remove the `mainPolicyId` once that apply lands, since the policy it names is gone.
 - App installations and permissions are managed by hand in each app's settings and recorded in `apps.nix`; keep the record in step.
-- Secrets go in `repos.nix` as sealed values: `printf %s "$value" | just seal <repo> <env>`. Only GitHub can decrypt them, so they're safe to commit, and state holds only the ciphertext. Never put a plaintext secret in Nix, a variable, or state.
+- Secrets go in `sealed.json`, sealed to their environment's public key: `printf %s "$value" | just seal <repo> <env> <NAME>`, or pipe the value straight from its source. Only GitHub can decrypt them, so they're safe to commit, and state holds only the ciphertext. Never put a plaintext secret in Nix, a variable, or state. The environment must exist in GitHub before you seal for it, so a new environment lands in one apply and its secrets in the next. A key from `sealed.json` with no matching environment in `repos.nix` fails evaluation.
 - OpenTofu can't see repository-level secrets it doesn't manage; the workflow's `secrets` job checks for them daily and alerts #alerts.
 - The provider comes from nixpkgs (`opentofu.withPlugins` in `flake.nix`), so `flake.lock` is its supply chain. Write against the locked provider's schema (check `nix eval` of `terraform-providers.integrations_github.version`), not the registry's latest docs.
 - CI authenticates as two GitHub Apps through `GITHUB_TOKEN`: teleopsis in `plan`, teleozyme in `production`. teleopsis has Administration write, not read: GitHub shows a ruleset's bypass actors only to credentials that can edit it, and read-only plans showed them missing and couldn't detect drift in them. So the `plan` environment can edit GitHub settings; R2 state writes and every apply still need `production`. `github_app_installation_repository` doesn't work with app tokens, and a fine-grained PAT can add repos to an installation but not list them, so installations stay manual rather than putting a classic `repo` token in CI.
