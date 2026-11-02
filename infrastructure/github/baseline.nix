@@ -205,6 +205,16 @@ in {
         to = "github_repository_environment.${id repo}_${env}";
         id = "${repo}:${env}";
       }) (lib.filterAttrs (_: envCfg: envCfg.adopt or false) (cfg.environments or {}));
+
+    # Creating a `main` policy where one exists fails ("root object was
+    # present, but now absent"), so existing ones are imported by ID
+    policyImports = repo: cfg:
+      lib.mapAttrsToList (env: envCfg: {
+        to = "github_repository_environment_deployment_policy.${id repo}_${env}";
+        id = "${repo}:${env}:${toString envCfg.mainPolicyId}";
+      }) (lib.filterAttrs (_: envCfg: envCfg ? mainPolicyId) (cfg.environments or {}));
   in
-    lib.concatLists (lib.mapAttrsToList (repo: cfg: rulesetImports repo cfg ++ environmentImports repo cfg) repos);
+    lib.concatLists (lib.mapAttrsToList (repo: cfg:
+      rulesetImports repo cfg ++ environmentImports repo cfg ++ policyImports repo cfg)
+    repos);
 }

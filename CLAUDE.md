@@ -49,7 +49,7 @@ The baseline (`infrastructure/github/baseline.nix`) is what makes it safe to ins
 
 - `repos.nix`, `baseline.nix`, `apps.nix` and `checks/baseline.jq` set the agents' own guardrails. A change to any of them is a policy change: say why in the PR description.
 - Bypass actors: only the admin role, teleotrope (on Require approval and Agent branches, for repos with `updaterBypass`) and teleomycete (on Agent-only branches). teleoid is never one. `checks/baseline.jq` enforces this as an allowlist, so extend the allowlist only on purpose. Never set `can_approve_pull_request_reviews = true`.
-- Add a repo to `repos.nix` before the agents' app goes on it. It needs `requiredChecks`, since every repo gets Require CI. Import anything it already has (`rulesetIds`, `adopt` on environments) rather than creating duplicates.
+- Add a repo to `repos.nix` before the agents' app goes on it. It needs `requiredChecks`, since every repo gets Require CI. Import anything it already has (`rulesetIds`, and `adopt` and `mainPolicyId` on environments) rather than creating duplicates. Creating a deployment branch policy that already exists fails with "Provider produced inconsistent result after apply … root object was present, but now absent"; import it by ID instead.
 - App installations and permissions are managed by hand in each app's settings and recorded in `apps.nix`; keep the record in step.
 - Secrets go in `repos.nix` as sealed values: `printf %s "$value" | just seal <repo> <env>`. Only GitHub can decrypt them, so they're safe to commit, and state holds only the ciphertext. Never put a plaintext secret in Nix, a variable, or state.
 - OpenTofu can't see repository-level secrets it doesn't manage; the workflow's `secrets` job checks for them daily and alerts #alerts.
