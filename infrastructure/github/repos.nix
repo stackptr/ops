@@ -42,6 +42,21 @@
 # `just seal <repo> <environment> <NAME>`. Only GitHub can decrypt them, so
 # they're safe to commit, and state holds only the ciphertext.
 {
+  llm-profile = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "Persistent system prompt for use with LLMs";
+      homepage_url = "";
+    };
+    requiredChecks = ["words"];
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # release.yml's Slack notices (SLACK_BOT_TOKEN)
+      notify = {};
+    };
+  };
   rc = {
     requiredChecks = map (host: "build (${host})") [
       "glyph, x86_64-linux, ubuntu-latest"
