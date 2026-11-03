@@ -18,9 +18,11 @@
 # - Agent branches (every branch but the default and agents/**): only bypass
 #   actors create, update or delete them, so agents can't push to the branch
 #   behind my PR, which teleoid would then approve. The admin role and, with
+#   `dependabot`, Dependabot (it pushes `dependabot/**` branches) and, with
 #   `updaterBypass`, teleotrope bypass it.
-# - Agent-only branches (agents/**): only the admin role and teleomycete
-#   create or update them, so teleoid (Contents: write) can't push there.
+# - Agent-only branches (agents/**): only the admin role and, with
+#   `agentsInstalled`, teleomycete create or update them, so teleoid
+#   (Contents: write) can't push there.
 #   Deletions and force-pushes stay allowed, for agents rebasing.
 #
 # Also: GITHUB_TOKEN is read-only by default and can't approve PRs; secrets
@@ -38,6 +40,10 @@
     problems =
       lib.optional ((cfg.updaterBypass or false) && !(agents cfg))
       "updaterBypass needs agents: it bypasses only the agents' rulesets"
+      ++ lib.optional ((cfg.dependabot or false) && !(agents cfg))
+      "dependabot needs agents: it bypasses only \"Agent branches\""
+      ++ lib.optional ((cfg.agentsInstalled or false) && !(agents cfg))
+      "agentsInstalled needs agents"
       ++ lib.optionals (private cfg) (
         lib.optional (agents cfg) "a private repo can't have agents: it gets no rulesets to guard them"
         ++ lib.optional ((cfg.requiredChecks or []) != []) "a private repo gets no rulesets, so requiredChecks would do nothing"
@@ -125,7 +131,7 @@
           deletion = true;
           non_fast_forward = true;
         };
-        bypass_actors = [admin] ++ updater;
+        bypass_actors = [admin] ++ lib.optional (cfg.dependabot or false) (app "dependabot") ++ updater;
       };
 
       agent_only_branches = {
@@ -138,7 +144,10 @@
           creation = true;
           update = true;
         };
-        bypass_actors = [admin (app "teleomycete")];
+        # GitHub accepts an app as a bypass actor only once it's installed
+        # on the repo, so teleomycete joins in a follow-up (`agentsInstalled`).
+        # Until then nobody but the admin role pushes agents/**.
+        bypass_actors = [admin] ++ lib.optional (cfg.agentsInstalled or false) (app "teleomycete");
       };
     };
   in
