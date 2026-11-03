@@ -17,7 +17,8 @@
 #   `updaterBypass`, teleotrope bypass it.
 # - Agent branches (every branch but the default and agents/**): only bypass
 #   actors create, update or delete them, so agents can't push to the branch
-#   behind my PR, which teleoid would then approve. The admin role and, with
+#   behind my PR, which teleoid would then approve. The admin role,
+#   Dependabot (it pushes `dependabot/**` branches) and, with
 #   `updaterBypass`, teleotrope bypass it.
 # - Agent-only branches (agents/**): only the admin role and teleomycete
 #   create or update them, so teleoid (Contents: write) can't push there.
@@ -125,7 +126,7 @@
           deletion = true;
           non_fast_forward = true;
         };
-        bypass_actors = [admin] ++ updater;
+        bypass_actors = [admin (app "dependabot")] ++ updater;
       };
 
       agent_only_branches = {
