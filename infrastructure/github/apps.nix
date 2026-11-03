@@ -7,7 +7,8 @@
 # the bot's user ID.
 {
   # The coding agents (Paseo and OpenCode on glyph). Installed only on repos
-  # in ./repos.nix. Never a bypass actor except on "Agent-only branches", and
+  # in ./repos.nix with `agents`, after the apply that adds their rulesets:
+  # its token covers every repo it's installed on. Never a bypass actor except on "Agent-only branches", and
   # never Workflows or Administration.
   teleomycete = {
     id = 5433982;
@@ -21,7 +22,8 @@
     permissions = "Contents and Pull requests read/write";
   };
 
-  # Approves my own PRs (approve.yml, on pull_request_target). Its approval
+  # Approves my own PRs (approve.yml, on pull_request_target), on repos with
+  # `agents`, from each one's `approve` environment. Its approval
   # only counts with Contents: write. Never a bypass actor, so its ID isn't
   # needed here.
   teleoid = {

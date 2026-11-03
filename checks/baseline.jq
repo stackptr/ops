@@ -3,7 +3,7 @@
 # fails if there are any. It catches mistakes, not intent: a PR can edit this
 # file too, so review changes to it as policy changes.
 #
-# $apps: infrastructure/github/apps.nix; $repos: the names in repos.nix
+# $apps: infrastructure/github/apps.nix; $repos: infrastructure/github/repos.nix
 
 # The apps that may bypass each ruleset. Any other bypass actor besides the
 # admin role is a violation, so no app (teleoid included) becomes one by
@@ -17,6 +17,15 @@ def allowed($name):
   }[$name] // [];
 
 def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-only branches"];
+
+# The rulesets a repo gets: none if private (they need GitHub Pro); "Require
+# CI" if it has checks to require; the other three if agents work on it
+def expectedRulesets($cfg):
+  if ($cfg.repository.visibility // "public") != "public" then []
+  else
+    (if ($cfg.requiredChecks // []) != [] then ["Require CI"] else [] end)
+    + (if $cfg.agents // false then rulesetNames[1:] else [] end)
+  end;
 
 (.resource.github_repository_ruleset // {} | [.[]]) as $rulesets
 | (.resource.github_workflow_repository_permissions // {} | [.[]]) as $permissions
@@ -32,12 +41,29 @@ def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-on
           | not)
       | "\($r.repository): \"\($r.name)\" can't have bypass actor \(.actor_type) \(.actor_id)"
     ),
-    ( $repos[] as $repo
-      | rulesetNames[] as $name
+    ( $repos | to_entries[] | .key as $repo | expectedRulesets(.value)[] as $name
       | select([$rulesets[] | select(.repository == $repo and .name == $name)] | length != 1)
       | "\($repo): needs exactly one \"\($name)\" ruleset"
     ),
-    ( $repos[] as $repo
+    ( $rulesets[] as $r
+      | select(any(expectedRulesets($repos[$r.repository] // {})[]; . == $r.name) | not)
+      | "\($r.repository): shouldn't have the \"\($r.name)\" ruleset"
+    ),
+    ( $rulesets[]
+      | select(.name == "Require CI" and ((.rules.required_status_checks.required_check // []) | length) == 0)
+      | "\(.repository): \"Require CI\" needs at least one required check"
+    ),
+    # Agents need rulesets, which private repos can't have, and my own PRs
+    # there merge through teleoid's approval, whose key lives in `approve`
+    ( $repos | to_entries[] | select(.value.agents // false) | .key as $repo
+      | ( select([$repositories[] | select(.name == $repo and .visibility == "public")] | length != 1)
+          | "\($repo): agents need a public repository"
+        ),
+        ( select([$environments[] | select(.value.repository == $repo and .value.environment == "approve")] | length != 1)
+          | "\($repo): agents need an `approve` environment (teleoid's key, for approve.yml)"
+        )
+    ),
+    ( $repos | keys[] as $repo
       | select(
           [ $permissions[]
             | select(.repository == $repo
@@ -48,7 +74,7 @@ def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-on
     ),
     # Without its github_repository, a repo's settings go unmanaged, and
     # dropping it from a config that had it would destroy the repository
-    ( $repos[] as $repo
+    ( $repos | keys[] as $repo
       | select([$repositories[] | select(.name == $repo)] | length != 1)
       | "\($repo): needs exactly one github_repository (`repository` in repos.nix)"
     ),
