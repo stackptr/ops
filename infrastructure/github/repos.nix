@@ -74,8 +74,6 @@
       merge_commit_message = "PR_TITLE";
       allow_auto_merge = true;
       allow_update_branch = true;
-      # Partial flake updates open a branch per run (rc's update.yml), and
-      # cloud sessions can't delete branches
       delete_branch_on_merge = true;
     };
     environments = {
