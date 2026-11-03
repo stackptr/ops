@@ -8,18 +8,22 @@
 {
   # The coding agents (Paseo and OpenCode on glyph). Installed only on repos
   # in ./repos.nix with `agents`, after the apply that adds their rulesets:
-  # its token covers every repo it's installed on. Never a bypass actor
-  # except on "Agent-only branches", and never Workflows or Administration.
+  # its token covers every repo it's installed on. GitHub accepts it as a
+  # bypass actor only once installed, so "Agent-only branches" names it only
+  # with `agentsInstalled`, set after the install. Never a bypass actor
+  # elsewhere, and never Workflows or Administration.
   teleomycete = {
     id = 5433982;
     permissions = "Contents, Pull requests and Issues read/write";
   };
 
   # GitHub's own app, not one of mine: it opens version-update PRs from
-  # `dependabot/**` branches. Bypasses "Agent branches", which otherwise
-  # rejects its pushes (rc had no Dependabot PRs from 23 Oct, when the
-  # ruleset arrived, until this bypass). It only writes its own branches, and
-  # its PRs need my approval like any other.
+  # `dependabot/**` branches. Bypasses "Agent branches" on repos with
+  # `dependabot`, which otherwise rejects its pushes (rc had no Dependabot
+  # PRs from 23 Oct, when the ruleset arrived, until this bypass). GitHub
+  # accepts it as a bypass actor only where Dependabot runs (a
+  # .github/dependabot.yml). It only writes its own branches, and its PRs
+  # need my approval like any other.
   dependabot = {
     id = 29110;
     permissions = "GitHub-managed";

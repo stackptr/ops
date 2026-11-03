@@ -5,16 +5,18 @@
 #
 # $apps: infrastructure/github/apps.nix; $repos: infrastructure/github/repos.nix
 
-# The apps that may bypass each ruleset. Any other bypass actor besides the
-# admin role is a violation, so no app (teleoid included) becomes one by
-# accident, and teleomycete bypasses only "Agent-only branches".
-def allowed($name):
-  {
-    "Require CI": [],
-    "Require approval": [$apps.teleotrope.id],
-    "Agent branches": [$apps.teleotrope.id, $apps.dependabot.id],
-    "Agent-only branches": [$apps.teleomycete.id]
-  }[$name] // [];
+# The apps that may bypass each ruleset of a repo with options $cfg. Any
+# other bypass actor besides the admin role is a violation, so no app
+# (teleoid included) becomes one by accident; teleomycete bypasses only
+# "Agent-only branches", and only once installed (`agentsInstalled`).
+def allowed($name; $cfg):
+  ( if $cfg.updaterBypass // false then [$apps.teleotrope.id] else [] end ) as $updater
+  | {
+      "Require CI": [],
+      "Require approval": $updater,
+      "Agent branches": ($updater + (if $cfg.dependabot // false then [$apps.dependabot.id] else [] end)),
+      "Agent-only branches": (if $cfg.agentsInstalled // false then [$apps.teleomycete.id] else [] end)
+    }[$name] // [];
 
 def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-only branches"];
 
@@ -37,7 +39,7 @@ def expectedRulesets($cfg):
       | ($r.bypass_actors // [])[]
       | select(
           (.actor_type == "RepositoryRole" and .actor_id == 5)
-          or (.actor_type == "Integration" and (.actor_id as $id | any(allowed($r.name)[]; . == $id)))
+          or (.actor_type == "Integration" and (.actor_id as $id | any(allowed($r.name; $repos[$r.repository] // {})[]; . == $id)))
           | not)
       | "\($r.repository): \"\($r.name)\" can't have bypass actor \(.actor_type) \(.actor_id)"
     ),
