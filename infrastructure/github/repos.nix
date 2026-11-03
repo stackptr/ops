@@ -97,4 +97,23 @@
       notify = {};
     };
   };
+  "zx.dev" = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "🌐 personal website";
+      homepage_url = "https://zx.dev";
+      topics = ["nix-flake" "personal-website" "zola"];
+    };
+    requiredChecks = ["build"];
+    # Created by hand; it only blocked force pushes
+    rulesetIds.require_ci = 12057014;
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # ci.yml's push to the stackptr Cachix cache on main
+      # (CACHIX_AUTH_TOKEN)
+      cachix = {};
+    };
+  };
 }
