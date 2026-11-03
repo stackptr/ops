@@ -42,6 +42,13 @@
 # `just seal <repo> <environment> <NAME>`. Only GitHub can decrypt them, so
 # they're safe to commit, and state holds only the ciphertext.
 {
+  lob = {
+    repository = {
+      visibility = "private";
+      description = "";
+      homepage_url = "";
+    };
+  };
   rc = {
     requiredChecks = map (host: "build (${host})") [
       "glyph, x86_64-linux, ubuntu-latest"
