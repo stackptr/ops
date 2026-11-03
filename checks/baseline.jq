@@ -20,6 +20,7 @@ def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-on
 
 (.resource.github_repository_ruleset // {} | [.[]]) as $rulesets
 | (.resource.github_workflow_repository_permissions // {} | [.[]]) as $permissions
+| (.resource.github_repository // {} | [.[]]) as $repositories
 | (.resource.github_repository_environment // {} | to_entries) as $environments
 | (.resource.github_repository_environment_deployment_policy // {}) as $policies
 | [
@@ -44,6 +45,16 @@ def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-on
                 and .can_approve_pull_request_reviews == false)
           ] | length != 1)
       | "\($repo): GITHUB_TOKEN must be read-only and unable to approve PRs"
+    ),
+    # Without its github_repository, a repo's settings go unmanaged, and
+    # dropping it from a config that had it would destroy the repository
+    ( $repos[] as $repo
+      | select([$repositories[] | select(.name == $repo)] | length != 1)
+      | "\($repo): needs exactly one github_repository (`repository` in repos.nix)"
+    ),
+    ( $repositories[]
+      | select(.archive_on_destroy != true or .lifecycle.prevent_destroy != true)
+      | "\(.name): github_repository must set archive_on_destroy and prevent_destroy"
     ),
     ( $environments[]
       | select(
