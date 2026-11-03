@@ -193,6 +193,23 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "exitcode=$code" >> "$GITHUB_OUTPUT"
 
+      # Destroying a github_repository deletes the repository (or archives it,
+      # with archive_on_destroy). prevent_destroy only guards resources still
+      # in the config, so check the plan itself, before anything is uploaded
+      # to apply. To stop managing a repo, use a `removed` block with
+      # `lifecycle.destroy = false`, which plans a forget rather than a delete (infrastructure/github/repository.nix).
+      - name: Refuse to destroy repositories
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          destroyed=$(tofu -chdir=tofu show -json tfplan | jq -r '
+            .resource_changes[]?
+            | select(.type == "github_repository" and (.change.actions | index("delete")))
+            | .address')
+          if [[ -n $destroyed ]]; then
+            echo "::error::The plan destroys or replaces repositories: $(paste -sd' ' <<< "$destroyed")"
+            exit 1
+          fi
+
       - name: Upload plan
         if: steps.plan.outputs.exitcode == '2' && github.event_name != 'schedule'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

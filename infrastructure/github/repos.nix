@@ -15,8 +15,8 @@
 #   workflow has to wait for the checks and merge with
 #   `gh pr merge --admin --match-head-commit`, as rc's update.yml does
 #   (stackptr/rc#772, stackptr/rc#773).
-# - repository: the repo's settings (github_repository), imported on first
-#   apply. State every one: see ./repository.nix
+# - repository (required): the repo's settings (github_repository), imported
+#   on first apply. State every one: see ./repository.nix
 # - oidc: the repo's workflows use OIDC; subjects then include the ref, so
 #   cloud trust policies can match ref:refs/heads/main
 # - environments.<name>:
