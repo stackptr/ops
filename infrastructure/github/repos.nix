@@ -42,6 +42,63 @@
 # `just seal <repo> <environment> <NAME>`. Only GitHub can decrypt them, so
 # they're safe to commit, and state holds only the ciphertext.
 {
+  actions = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "";
+      homepage_url = "";
+    };
+    requiredChecks = ["check" "action (ubuntu-latest)" "action (macos-latest)"];
+    environments = {
+      # The reusable approve workflow, called from this repo's approve.yml
+      # (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # smoke.yml, which posts real messages (SLACK_BOT_TOKEN)
+      notify = {};
+    };
+  };
+  flakes = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "❄️ Nix development environments and templates";
+      homepage_url = "";
+      topics = ["nix" "nix-flake" "nix-template"];
+    };
+    # None yet: ci.yml runs only on pushes to main, so PRs never get its
+    # checks. Add them once it also runs on pull_request.
+    requiredChecks = [];
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # ci.yml's push to the stackptr Cachix cache on main
+      # (CACHIX_AUTH_TOKEN)
+      cachix = {};
+    };
+  };
+  llm-profile = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "Persistent system prompt for use with LLMs";
+      homepage_url = "";
+    };
+    requiredChecks = ["words"];
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # release.yml's Slack notices (SLACK_BOT_TOKEN)
+      notify = {};
+    };
+  };
+  lob = {
+    repository = {
+      visibility = "private";
+      description = "";
+      homepage_url = "";
+    };
+  };
   rc = {
     requiredChecks = map (host: "build (${host})") [
       "glyph, x86_64-linux, ubuntu-latest"
@@ -95,6 +152,46 @@
       # Slack alerts from ci.yml, deploy.yml and port-scan.yml on main
       # (SLACK_BOT_TOKEN)
       notify = {};
+    };
+  };
+  resume = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "";
+      homepage_url = "";
+    };
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # release.yml's push to the Attic cache (ATTIC_TOKEN)
+      attic = {};
+    };
+  };
+  vault = {
+    repository = {
+      visibility = "private";
+      description = "Private markdown notes";
+      homepage_url = "";
+    };
+  };
+  "zx.dev" = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "🌐 personal website";
+      homepage_url = "https://zx.dev";
+      topics = ["nix-flake" "personal-website" "zola"];
+    };
+    requiredChecks = ["build"];
+    # Created by hand; it only blocked force pushes
+    rulesetIds.require_ci = 12057014;
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # ci.yml's push to the stackptr Cachix cache on main
+      # (CACHIX_AUTH_TOKEN)
+      cachix = {};
     };
   };
 }
