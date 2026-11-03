@@ -97,4 +97,11 @@
       notify = {};
     };
   };
+  vault = {
+    repository = {
+      visibility = "private";
+      description = "Private markdown notes";
+      homepage_url = "";
+    };
+  };
 }
