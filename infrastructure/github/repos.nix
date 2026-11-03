@@ -115,8 +115,6 @@
     environments = {
       # The reusable approve workflow (teleoid)
       approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
-      # release.yml's push to the Attic cache (ATTIC_TOKEN)
-      attic = {};
     };
   };
 }
