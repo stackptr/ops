@@ -16,6 +16,12 @@
 #   any, the repo gets no "Require CI". Public repos only.
 # - rulesetIds: existing rulesets to import instead of creating duplicates,
 #   keyed like baseline.nix's rulesets
+# - agentsInstalled (needs agents): teleomycete is installed, so it may
+#   bypass "Agent-only branches". GitHub rejects an app as a bypass actor
+#   before it's installed, so this is a follow-up to the install.
+# - dependabot (needs agents): the repo runs Dependabot (a
+#   .github/dependabot.yml), which bypasses "Agent branches" to push its
+#   `dependabot/**` branches. GitHub rejects it where Dependabot doesn't run.
 # - updaterBypass (needs agents): teleotrope may skip "Require approval" and "Agent
 #   branches" to merge flake updates. Only for repos whose required checks
 #   build the flake (stackptr/rc#768). The bypass alone doesn't make update
@@ -60,6 +66,8 @@
     };
     updaterBypass = true;
     agents = true;
+    agentsInstalled = true;
+    dependabot = true;
     repository = {
       visibility = "public";
       description = "🖥️ System configuration flake for NixOS and nix-darwin";
@@ -95,6 +103,20 @@
       # Slack alerts from ci.yml, deploy.yml and port-scan.yml on main
       # (SLACK_BOT_TOKEN)
       notify = {};
+    };
+  };
+  resume = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "";
+      homepage_url = "";
+    };
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # release.yml's push to the Attic cache (ATTIC_TOKEN)
+      attic = {};
     };
   };
   vault = {
