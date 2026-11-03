@@ -50,6 +50,8 @@
 {
   actions = {
     agents = true;
+    # .github/dependabot.yml (GitHub Actions versions)
+    dependabot = true;
     repository = {
       visibility = "public";
       description = "";
