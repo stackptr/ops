@@ -12,7 +12,7 @@ def allowed($name):
   {
     "Require CI": [],
     "Require approval": [$apps.teleotrope.id],
-    "Agent branches": [$apps.teleotrope.id],
+    "Agent branches": [$apps.teleotrope.id, $apps.dependabot.id],
     "Agent-only branches": [$apps.teleomycete.id]
   }[$name] // [];
 
