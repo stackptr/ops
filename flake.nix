@@ -42,7 +42,7 @@
           pkgs.runCommand "baseline" {
             nativeBuildInputs = [pkgs.jq];
             apps = builtins.toJSON (import ./infrastructure/github/apps.nix);
-            repos = builtins.toJSON (builtins.attrNames (import ./infrastructure/github/repos.nix));
+            repos = builtins.toJSON (import ./infrastructure/github/repos.nix);
           } ''
             jq -r -f ${./checks/baseline.jq} --argjson apps "$apps" --argjson repos "$repos" \
               ${self'.packages.terraformConfiguration}

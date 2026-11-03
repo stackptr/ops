@@ -3,10 +3,15 @@
 # secrets or bypassing review (stackptr/ops#3). Changes here change the
 # agents' guardrails: review them as policy changes.
 #
-# Four rulesets per repo (a bypass actor skips every rule in its ruleset, so
-# rules with different bypass actors live in separate rulesets):
-# - Require CI (default branch): the repo's checks pass; no force-pushes.
-#   Only the admin role bypasses it.
+# Up to four rulesets per repo (a bypass actor skips every rule in its
+# ruleset, so rules with different bypass actors live in separate rulesets).
+# Private repos get none: rulesets on a personal account's private repos need
+# GitHub Pro.
+# - Require CI (default branch), for repos with `requiredChecks`: the repo's
+#   checks pass; no force-pushes. Only the admin role bypasses it.
+#
+# The other three only for repos with `agents`, where teleomycete is
+# installed; elsewhere only I push, and they would guard against nobody:
 # - Require approval (default branch): a PR with one approval of its latest
 #   push; no force-pushes or deletions. The admin role and, with
 #   `updaterBypass`, teleotrope bypass it.
@@ -23,12 +28,25 @@
 # admin bypass, and deploy environments need my approval; repos using OIDC
 # put the ref in the subject claim.
 #
-# The invariants (who may bypass what, every repo has every ruleset) are
+# The invariants (who may bypass what, which repos get which rulesets) are
 # checked over the rendered config by checks/baseline.jq, without
 # credentials. Repository-level secrets are banned too, but OpenTofu can't
 # see what it doesn't manage: the workflow's `secrets` job checks for them.
 {lib, ...}: let
-  repos = import ./repos.nix;
+  # Options that contradict each other fail evaluation
+  repos = lib.mapAttrs (repo: cfg: let
+    problems =
+      lib.optional ((cfg.updaterBypass or false) && !(agents cfg))
+      "updaterBypass needs agents: it bypasses only the agents' rulesets"
+      ++ lib.optionals (private cfg) (
+        lib.optional (agents cfg) "a private repo can't have agents: it gets no rulesets to guard them"
+        ++ lib.optional ((cfg.requiredChecks or []) != []) "a private repo gets no rulesets, so requiredChecks would do nothing"
+        ++ lib.optional ((cfg.environments or {}) != {}) "a private repo can't have environments without GitHub Pro"
+      );
+  in
+    if problems == []
+    then cfg
+    else throw "repos.nix: ${repo}: ${lib.concatStringsSep "; " problems}") (import ./repos.nix);
   apps = import ./apps.nix;
 
   # stackptr's user ID
@@ -57,67 +75,74 @@
 
   agentBranches = "refs/heads/agents/**";
 
+  agents = cfg: cfg.agents or false;
+  private = cfg: (cfg.repository.visibility or "public") != "public";
+
   rulesets = cfg: let
     updater = lib.optional (cfg.updaterBypass or false) (app "teleotrope");
-  in {
-    require_ci = {
-      name = "Require CI";
-      conditions.ref_name = defaultBranch;
-      rules = {
-        non_fast_forward = true;
-        required_status_checks.required_check =
-          map (context: {
-            inherit context;
-            integration_id = githubActions;
-          })
-          cfg.requiredChecks;
-      };
-      bypass_actors = [admin];
-    };
-
-    require_approval = {
-      name = "Require approval";
-      conditions.ref_name = defaultBranch;
-      rules = {
-        deletion = true;
-        non_fast_forward = true;
-        pull_request = {
-          required_approving_review_count = 1;
-          dismiss_stale_reviews_on_push = true;
-          require_last_push_approval = true;
+    requireCi = lib.optionalAttrs ((cfg.requiredChecks or []) != []) {
+      require_ci = {
+        name = "Require CI";
+        conditions.ref_name = defaultBranch;
+        rules = {
+          non_fast_forward = true;
+          required_status_checks.required_check =
+            map (context: {
+              inherit context;
+              integration_id = githubActions;
+            })
+            cfg.requiredChecks;
         };
+        bypass_actors = [admin];
       };
-      bypass_actors = [admin] ++ updater;
     };
 
-    agent_branches = {
-      name = "Agent branches";
-      conditions.ref_name = {
-        include = ["~ALL"];
-        exclude = ["~DEFAULT_BRANCH" agentBranches];
+    agentRulesets = lib.optionalAttrs (agents cfg) {
+      require_approval = {
+        name = "Require approval";
+        conditions.ref_name = defaultBranch;
+        rules = {
+          deletion = true;
+          non_fast_forward = true;
+          pull_request = {
+            required_approving_review_count = 1;
+            dismiss_stale_reviews_on_push = true;
+            require_last_push_approval = true;
+          };
+        };
+        bypass_actors = [admin] ++ updater;
       };
-      rules = {
-        creation = true;
-        update = true;
-        deletion = true;
-        non_fast_forward = true;
-      };
-      bypass_actors = [admin] ++ updater;
-    };
 
-    agent_only_branches = {
-      name = "Agent-only branches";
-      conditions.ref_name = {
-        include = [agentBranches];
-        exclude = [];
+      agent_branches = {
+        name = "Agent branches";
+        conditions.ref_name = {
+          include = ["~ALL"];
+          exclude = ["~DEFAULT_BRANCH" agentBranches];
+        };
+        rules = {
+          creation = true;
+          update = true;
+          deletion = true;
+          non_fast_forward = true;
+        };
+        bypass_actors = [admin] ++ updater;
       };
-      rules = {
-        creation = true;
-        update = true;
+
+      agent_only_branches = {
+        name = "Agent-only branches";
+        conditions.ref_name = {
+          include = [agentBranches];
+          exclude = [];
+        };
+        rules = {
+          creation = true;
+          update = true;
+        };
+        bypass_actors = [admin (app "teleomycete")];
       };
-      bypass_actors = [admin (app "teleomycete")];
     };
-  };
+  in
+    lib.optionalAttrs (!(private cfg)) (requireCi // agentRulesets);
 
   # OpenTofu resource names can't contain dots (zx.dev)
   id = lib.replaceStrings ["."] ["_"];
@@ -195,6 +220,18 @@ in {
       branch_pattern = "main";
     };
   });
+
+  # Not secret (app client IDs and the like). Creating one that exists
+  # updates it, so adopted environments' variables need no import.
+  resource.github_actions_environment_variable = forEnvironments (repo: env: cfg:
+    lib.mapAttrs' (name: value:
+      lib.nameValuePair "${id repo}_${env}_${name}" {
+        repository = repo;
+        environment = environment repo env;
+        variable_name = name;
+        inherit value;
+      })
+    (cfg.variables or {}));
 
   resource.github_actions_environment_secret = forEnvironments (repo: env: cfg:
     lib.mapAttrs' (name: sealed:
