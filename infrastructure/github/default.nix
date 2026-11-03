@@ -4,7 +4,7 @@
 # teleopsis in the `plan` environment and teleozyme in `production` (see
 # ./apps.nix for why both can write). Locally, `GITHUB_TOKEN=$(gh auth token)`.
 {
-  imports = [./baseline.nix];
+  imports = [./baseline.nix ./repository.nix];
 
   terraform.required_providers.github.source = "integrations/github";
 

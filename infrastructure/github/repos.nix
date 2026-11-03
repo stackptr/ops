@@ -15,6 +15,8 @@
 #   workflow has to wait for the checks and merge with
 #   `gh pr merge --admin --match-head-commit`, as rc's update.yml does
 #   (stackptr/rc#772, stackptr/rc#773).
+# - repository: the repo's settings (github_repository), imported on first
+#   apply. State every one: see ./repository.nix
 # - oidc: the repo's workflows use OIDC; subjects then include the ref, so
 #   cloud trust policies can match ref:refs/heads/main
 # - environments.<name>:
@@ -49,6 +51,29 @@
       agent_only_branches = 26123828;
     };
     updaterBypass = true;
+    repository = {
+      description = "🖥️ System configuration flake for NixOS and nix-darwin";
+      homepage_url = "";
+      visibility = "public";
+      topics = ["dotfiles" "home-manager" "nix" "nix-darwin" "nix-flake" "nixos" "nixos-configuration"];
+      has_issues = true;
+      has_projects = false;
+      has_wiki = false;
+      has_discussions = false;
+      has_downloads = false;
+      is_template = false;
+      vulnerability_alerts = false;
+      web_commit_signoff_required = false;
+      # PRs are squash-merged, so the title becomes the commit message
+      allow_merge_commit = false;
+      allow_squash_merge = true;
+      allow_rebase_merge = true;
+      squash_merge_commit_title = "PR_TITLE";
+      squash_merge_commit_message = "COMMIT_MESSAGES";
+      allow_auto_merge = true;
+      allow_update_branch = true;
+      delete_branch_on_merge = true;
+    };
     environments = {
       # App keys for approve.yml (teleoid) and update.yml (teleotrope)
       approve.adopt = true;
