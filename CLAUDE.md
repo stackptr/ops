@@ -62,7 +62,7 @@ The baseline (`infrastructure/github/baseline.nix`) is what makes it safe to ins
 
 In order; each step waits for the one before to apply.
 
-1. **Survey it.** Settings (`gh api repos/stackptr/<repo>`), rulesets and their IDs, environments and their `main` policy IDs, environment variables, repo-level secrets, and workflows: their triggers, the secrets each job reads, and the check names on a recent PR. A required check must run on `pull_request`, or PRs never get it.
+1. **Survey it.** Settings (`gh api repos/stackptr/<repo>`; check `has_pull_requests` is true, since the locked provider can't set it and agents need PRs), rulesets and their IDs, environments and their `main` policy IDs, environment variables, repo-level secrets, and workflows: their triggers, the secrets each job reads, and the check names on a recent PR. A required check must run on `pull_request`, or PRs never get it.
 2. **Install teleopsis and teleozyme** on the repo by hand. Without them the plan can't read it.
 3. **Add it to `repos.nix`** in one PR: `repository`, `requiredChecks`, `rulesetIds` and `adopt`/`mainPolicyId` for what exists, an environment (main-only) for each group of secrets its workflows use, their `variables`, and, for agents, `agents = true` (plus `dependabot = true` if it has a `.github/dependabot.yml`) and an `approve` environment with `variables.APPROVER_CLIENT_ID`. Not `agentsInstalled` yet. The plan shows the settings moving to the defaults; check nothing else changes. From this apply, my own PRs there need an admin merge until step 6.
 4. **Seal its secrets** in a second PR, once the environments exist: each workflow secret, and for agents `APPROVER_PRIVATE_KEY` in `approve` (teleoid's key, the same in every repo).
