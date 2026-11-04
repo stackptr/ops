@@ -22,6 +22,9 @@
 # - dependabot (needs agents): the repo runs Dependabot (a
 #   .github/dependabot.yml), which bypasses "Agent branches" to push its
 #   `dependabot/**` branches. GitHub rejects it where Dependabot doesn't run.
+# - releaseTags: the repo's tags are releases that other repos pin (and their
+#   Dependabot upgrades to), so only the admin role may create, move or
+#   delete tags ("Release tags"). Public repos only.
 # - updaterBypass (needs agents): teleotrope may skip "Require approval" and "Agent
 #   branches" to merge flake updates. Only for repos whose required checks
 #   build the flake (stackptr/rc#768). The bypass alone doesn't make update
@@ -50,6 +53,8 @@
 {
   actions = {
     agents = true;
+    # Callers pin its releases; release.yml publishes one per tag
+    releaseTags = true;
     agentsInstalled = true;
     # .github/dependabot.yml (GitHub Actions versions)
     dependabot = true;
