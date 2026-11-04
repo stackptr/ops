@@ -25,6 +25,11 @@
 #   (Contents: write) can't push there.
 #   Deletions and force-pushes stay allowed, for agents rebasing.
 #
+# - Release tags (every tag), for repos with `releaseTags`: only the admin
+#   role creates, moves or deletes tags, so agents (Contents: write) can't tag
+#   unmerged code as a release that callers' Dependabot would then offer.
+#   Only the admin role bypasses it.
+#
 # Also: GITHUB_TOKEN is read-only by default and can't approve PRs; secrets
 # live only in environments, every environment is limited to main with no
 # admin bypass, and deploy environments need my approval; repos using OIDC
@@ -47,6 +52,7 @@
       ++ lib.optionals (private cfg) (
         lib.optional (agents cfg) "a private repo can't have agents: it gets no rulesets to guard them"
         ++ lib.optional ((cfg.requiredChecks or []) != []) "a private repo gets no rulesets, so requiredChecks would do nothing"
+        ++ lib.optional (cfg.releaseTags or false) "a private repo gets no rulesets, so releaseTags would do nothing"
         ++ lib.optional ((cfg.environments or {}) != {}) "a private repo can't have environments without GitHub Pro"
       );
   in
@@ -150,8 +156,25 @@
         bypass_actors = [admin] ++ lib.optional (cfg.agentsInstalled or false) (app "teleomycete");
       };
     };
+
+    releaseTags = lib.optionalAttrs (cfg.releaseTags or false) {
+      release_tags = {
+        name = "Release tags";
+        target = "tag";
+        conditions.ref_name = {
+          include = ["~ALL"];
+          exclude = [];
+        };
+        rules = {
+          creation = true;
+          update = true;
+          deletion = true;
+        };
+        bypass_actors = [admin];
+      };
+    };
   in
-    lib.optionalAttrs (!(private cfg)) (requireCi // agentRulesets);
+    lib.optionalAttrs (!(private cfg)) (requireCi // agentRulesets // releaseTags);
 
   # OpenTofu resource names can't contain dots (zx.dev)
   id = lib.replaceStrings ["."] ["_"];
