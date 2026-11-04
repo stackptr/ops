@@ -107,6 +107,7 @@
   };
   resume = {
     agents = true;
+    agentsInstalled = true;
     repository = {
       visibility = "public";
       description = "";
