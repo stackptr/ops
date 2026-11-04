@@ -48,6 +48,24 @@
 # `just seal <repo> <environment> <NAME>`. Only GitHub can decrypt them, so
 # they're safe to commit, and state holds only the ciphertext.
 {
+  actions = {
+    agents = true;
+    # .github/dependabot.yml (GitHub Actions versions)
+    dependabot = true;
+    repository = {
+      visibility = "public";
+      description = "";
+      homepage_url = "";
+    };
+    requiredChecks = ["check" "action (ubuntu-latest)" "action (macos-latest)"];
+    environments = {
+      # The reusable approve workflow, called from this repo's approve.yml
+      # (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # smoke.yml, which posts real messages (SLACK_BOT_TOKEN)
+      notify = {};
+    };
+  };
   rc = {
     requiredChecks = map (host: "build (${host})") [
       "glyph, x86_64-linux, ubuntu-latest"
