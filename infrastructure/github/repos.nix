@@ -11,7 +11,10 @@
 #   `topics` to manage them; the rest come from ./repository.nix's defaults.
 # - agents: the coding agents (teleomycete) work on the repo, so it gets
 #   "Require approval", "Agent branches" and "Agent-only branches", and needs
-#   an `approve` environment for teleoid's key. Public repos only.
+#   an `approve` environment for teleoid's key. Public repos only. Only for
+#   repos the agents may change unattended: their Contents write also covers
+#   releases (tags, assets), which no branch ruleset guards, and their token
+#   reaches every repo teleomycete is installed on.
 # - requiredChecks: GitHub Actions check names "Require CI" waits for. Without
 #   any, the repo gets no "Require CI". Public repos only.
 # - rulesetIds: existing rulesets to import instead of creating duplicates,
@@ -129,17 +132,12 @@
       notify = {};
     };
   };
-  resume = {
-    agents = true;
-    agentsInstalled = true;
-    repository = {
-      visibility = "public";
-      description = "";
-      homepage_url = "";
-    };
-    environments = {
-      # The reusable approve workflow (teleoid)
-      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
-    };
+  # No agents: cjohns.com/resume serves its `latest` release asset, which
+  # Contents write (and so any agent token) could replace without a PR.
+  # Change it from a supervised session instead.
+  resume.repository = {
+    visibility = "public";
+    description = "";
+    homepage_url = "";
   };
 }
