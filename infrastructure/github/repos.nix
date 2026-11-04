@@ -22,6 +22,9 @@
 # - dependabot (needs agents): the repo runs Dependabot (a
 #   .github/dependabot.yml), which bypasses "Agent branches" to push its
 #   `dependabot/**` branches. GitHub rejects it where Dependabot doesn't run.
+# - releaseTags: the repo's tags are releases that other repos pin (and their
+#   Dependabot upgrades to), so only the admin role may create, move or
+#   delete tags ("Release tags"). Public repos only.
 # - updaterBypass (needs agents): teleotrope may skip "Require approval" and "Agent
 #   branches" to merge flake updates. Only for repos whose required checks
 #   build the flake (stackptr/rc#768). The bypass alone doesn't make update
@@ -48,20 +51,39 @@
 # `just seal <repo> <environment> <NAME>`. Only GitHub can decrypt them, so
 # they're safe to commit, and state holds only the ciphertext.
 {
-  llm-profile = {
+  actions = {
     agents = true;
+    # Callers pin its releases; release.yml publishes one per tag
+    releaseTags = true;
+    agentsInstalled = true;
+    # .github/dependabot.yml (GitHub Actions versions)
+    dependabot = true;
+    repository = {
+      visibility = "public";
+      description = "";
+      homepage_url = "";
+    };
+    requiredChecks = ["check" "action (ubuntu-latest)" "action (macos-latest)"];
+    environments = {
+      # The reusable approve workflow, called from this repo's approve.yml
+      # (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # smoke.yml, which posts real messages (SLACK_BOT_TOKEN)
+      notify = {};
+    };
+  };
+  # No agents: I download its release assets (chat.md, the agent bundles,
+  # skill zips) and paste them into claude.ai, and Contents write (any agent
+  # token) could replace them without a PR. Change it from a supervised session.
+  llm-profile = {
     repository = {
       visibility = "public";
       description = "Persistent system prompt for use with LLMs";
       homepage_url = "";
     };
     requiredChecks = ["words"];
-    environments = {
-      # The reusable approve workflow (teleoid)
-      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
-      # release.yml's Slack notices (SLACK_BOT_TOKEN)
-      notify = {};
-    };
+    # release.yml's Slack notices (SLACK_BOT_TOKEN)
+    environments.notify = {};
   };
   rc = {
     requiredChecks = map (host: "build (${host})") [
@@ -122,6 +144,7 @@
   };
   resume = {
     agents = true;
+    agentsInstalled = true;
     repository = {
       visibility = "public";
       description = "";
@@ -130,8 +153,6 @@
     environments = {
       # The reusable approve workflow (teleoid)
       approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
-      # release.yml's push to the Attic cache (ATTIC_TOKEN)
-      attic = {};
     };
   };
 }
