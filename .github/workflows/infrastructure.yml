@@ -21,7 +21,9 @@ name: Infrastructure
 # GitHub credentials are two GitHub Apps installed on the account, teleopsis
 # in `plan` and teleozyme in `production`, each as OPS_APP_CLIENT_ID
 # (variable) and OPS_APP_PRIVATE_KEY (secret). teleopsis has Administration
-# write only so plans can see rulesets' bypass actors (apps.nix).
+# write only so plans can see rulesets' bypass actors (apps.nix). Each job
+# mints its token with the permissions it lists, not the app's whole set, so
+# a permission added to an app later reaches no job until it's listed here.
 
 on:
   # Every PR, so the required `check` always reports
@@ -233,6 +235,14 @@ jobs:
           client-id: ${{ vars.OPS_APP_CLIENT_ID }}
           private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          # All of teleopsis's permissions, and a subset of teleozyme's, which
+          # mints it when the run is gated. Administration is write only
+          # because bypass actors show only to a token that can edit the
+          # ruleset.
+          permission-administration: write
+          permission-actions: read
+          permission-environments: read
+          permission-secrets: read
 
       - name: Init
         run: just init
@@ -338,6 +348,11 @@ jobs:
           client-id: ${{ vars.OPS_APP_CLIENT_ID }}
           private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          # teleozyme's permissions
+          permission-administration: write
+          permission-actions: write
+          permission-environments: write
+          permission-secrets: read
 
       - name: Init
         run: just init
@@ -371,6 +386,8 @@ jobs:
           client-id: ${{ vars.OPS_APP_CLIENT_ID }}
           private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          # Only lists repository secrets
+          permission-secrets: read
 
       - name: Check for repository secrets
         env:
