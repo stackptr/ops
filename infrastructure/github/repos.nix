@@ -138,14 +138,11 @@
         adopt = true;
         variables.OPS_APP_CLIENT_ID = "Iv23liHIbNxGMNV2EESv";
       };
-      # Applies, as teleozyme, after my approval. Where this repo's own apply
-      # runs: its deployment policy is replaced once on import (see the header),
-      # which can't affect the apply already running. Its key and the state
-      # credentials are set by hand.
+      # Applies, as teleozyme, after my approval: where this repo's own apply
+      # runs. Its key and the state credentials are set by hand.
       production = {
         adopt = true;
         deploy = true;
-        mainPolicyId = 64823845;
         variables.OPS_APP_CLIENT_ID = "Iv23li6ESrImBQd0fDvU";
       };
     };
