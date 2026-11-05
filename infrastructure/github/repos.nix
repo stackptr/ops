@@ -67,7 +67,7 @@
     dependabot = true;
     repository = {
       visibility = "public";
-      description = "";
+      description = "🧩 Shared actions and workflows";
       homepage_url = "";
     };
     requiredChecks = ["check" "action (ubuntu-latest)" "action (macos-latest)"];
@@ -210,7 +210,7 @@
   # Change it from a supervised session instead.
   resume.repository = {
     visibility = "public";
-    description = "";
+    description = "💼 Professional experience";
     homepage_url = "";
   };
   "zx.dev" = {
