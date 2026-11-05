@@ -164,12 +164,8 @@
     requiredChecks = ["build"];
     # Created by hand; it only blocked force pushes
     rulesetIds.require_ci = 12057014;
-    environments = {
-      # The reusable approve workflow (teleoid)
-      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
-      # ci.yml's push to the stackptr Cachix cache on main
-      # (CACHIX_AUTH_TOKEN)
-      cachix = {};
-    };
+    # The reusable approve workflow (teleoid). No cache secret: rc's CI pushes
+    # the site to Attic as part of spore's build.
+    environments.approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
   };
 }
