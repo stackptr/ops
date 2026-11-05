@@ -18,15 +18,16 @@ def allowed($name; $cfg):
       "Agent-only branches": (if $cfg.agentsInstalled // false then [$apps.teleomycete.id] else [] end)
     }[$name] // [];
 
-def rulesetNames: ["Require CI", "Require approval", "Agent branches", "Agent-only branches"];
 
 # The rulesets a repo gets: none if private (they need GitHub Pro); "Require
-# CI" if it has checks to require; the other three if agents work on it
+# CI" if it has checks to require; the agents' three if agents work on it;
+# "Release tags" if its tags are releases
 def expectedRulesets($cfg):
   if ($cfg.repository.visibility // "public") != "public" then []
   else
     (if ($cfg.requiredChecks // []) != [] then ["Require CI"] else [] end)
-    + (if $cfg.agents // false then rulesetNames[1:] else [] end)
+    + (if $cfg.agents // false then ["Require approval", "Agent branches", "Agent-only branches"] else [] end)
+    + (if $cfg.releaseTags // false then ["Release tags"] else [] end)
   end;
 
 (.resource.github_repository_ruleset // {} | [.[]]) as $rulesets
@@ -50,6 +51,11 @@ def expectedRulesets($cfg):
     ( $rulesets[] as $r
       | select(any(expectedRulesets($repos[$r.repository] // {})[]; . == $r.name) | not)
       | "\($r.repository): shouldn't have the \"\($r.name)\" ruleset"
+    ),
+    ( $rulesets[]
+      | select(.name == "Release tags" and (.target != "tag" or .conditions.ref_name.include != ["~ALL"]
+          or (.rules | .creation != true or .update != true or .deletion != true)))
+      | "\(.repository): \"Release tags\" must restrict creating, moving and deleting every tag"
     ),
     ( $rulesets[]
       | select(.name == "Require CI" and ((.rules.required_status_checks.required_check // []) | length) == 0)
