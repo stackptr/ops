@@ -1,5 +1,26 @@
 tofu_dir := "tofu"
 
+# Recipes that run with credentials (init, plan, apply, destroy) refuse to run
+# anything but main's code: tofu executes the provider and Nix evaluation of
+# whatever is checked out, so an agent's branch would run with my credentials,
+# and on macOS Nix doesn't sandbox builds by default. OPS_ALLOW_BRANCH=1
+# overrides it, for my own branches only. In CI the environments already
+# admit only main.
+_on-main:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [[ ${GITHUB_ACTIONS:-} == true || ${OPS_ALLOW_BRANCH:-} == 1 ]]; then exit 0; fi
+  if [[ -n $(git status --porcelain --untracked-files=no) ]]; then
+    echo "error: uncommitted changes; commit them, or OPS_ALLOW_BRANCH=1 if they're mine" >&2
+    exit 1
+  fi
+  head=$(git rev-parse HEAD)
+  main=$(git rev-parse origin/main)
+  if [[ $head != "$main" ]]; then
+    echo "error: HEAD (${head::7}) isn't origin/main (${main::7}). Check out main, or OPS_ALLOW_BRANCH=1 for my own branch, never an agent's" >&2
+    exit 1
+  fi
+
 # Generate OpenTofu JSON config from Terranix
 build:
   nix build .#terraformConfiguration -o {{tofu_dir}}/config.tf.json
@@ -7,7 +28,7 @@ build:
 # Initialize OpenTofu (runs build first). Recipes that touch state need
 # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (an R2 API token for the state
 # bucket), TF_VAR_state_endpoint, and TF_VAR_state_passphrase.
-init *args: build
+init *args: _on-main build
   #!/usr/bin/env bash
   set -euo pipefail
   # Fail with the missing name, not an S3 error, unless there's no backend
@@ -22,15 +43,15 @@ init *args: build
   tofu -chdir={{tofu_dir}} init {{args}}
 
 # Show execution plan
-plan *args: build
+plan *args: _on-main build
   tofu -chdir={{tofu_dir}} plan {{args}}
 
 # Apply infrastructure changes
-apply *args: build
+apply *args: _on-main build
   tofu -chdir={{tofu_dir}} apply {{args}}
 
 # Destroy managed infrastructure
-destroy *args: build
+destroy *args: _on-main build
   tofu -chdir={{tofu_dir}} destroy {{args}}
 
 # Display generated Terraform JSON

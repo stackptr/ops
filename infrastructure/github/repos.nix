@@ -25,6 +25,10 @@
 # - dependabot (needs agents): the repo runs Dependabot (a
 #   .github/dependabot.yml), which bypasses "Agent branches" to push its
 #   `dependabot/**` branches. GitHub rejects it where Dependabot doesn't run.
+# - adminBypass: how the admin role bypasses the default branch's rulesets.
+#   "always" (the default) or "pull_request": only by merging a PR, so no one,
+#   cloud sessions acting as me included, pushes straight to the default
+#   branch. Other branches' rulesets are always bypassed.
 # - releaseTags: the repo's tags are releases that other repos pin (and their
 #   Dependabot upgrades to), so only the admin role may create, move or
 #   delete tags ("Release tags"). Public repos only.
