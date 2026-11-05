@@ -26,5 +26,10 @@
     "notify": {
       "SLACK_BOT_TOKEN": "REYWj9rb7HHehEd0I7CkWM9L2lAcXP+WBiGcU4I8iTP8T8o4CBjtjCBVMBEoh9U+nKse6rgx+ZYrCeGuOnCKwICQbdrtlycM1oMnOw4RguaIeqpi0I2gL41defE6u7JBIL/wizCGjhD9QDc="
     }
+  },
+  "llm-profile": {
+    "notify": {
+      "SLACK_BOT_TOKEN": "eOvSK9JwfoNIf685eLkXgpxlCugIjjJepYGmZifeZQmWBzdjXRYRyRD9vhpVj6N+1taSBMIZ5oUWs+ZAUqgDSLyfEujChxW+uZnkqqg5VW2p/grfo2mI4Co5ca7ZamzSGdCFwqTrmMm91LI="
+    }
   }
 }
