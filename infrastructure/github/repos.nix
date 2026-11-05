@@ -69,6 +69,7 @@
       visibility = "public";
       description = "";
       homepage_url = "";
+      topics = ["github-actions" "composite-actions" "reusable-workflows" "nix-flake" "slack"];
     };
     requiredChecks = ["check" "action (ubuntu-latest)" "action (macos-latest)"];
     environments = {
@@ -122,6 +123,7 @@
       visibility = "public";
       description = "⚙️ GitOps configuration";
       homepage_url = "";
+      topics = ["gitops" "infrastructure-as-code" "opentofu" "terranix" "github" "nix-flake"];
     };
     # infrastructure.yml's credential-free PR job
     requiredChecks = ["check"];
