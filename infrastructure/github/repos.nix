@@ -88,6 +88,25 @@
     # release.yml's Slack notices (SLACK_BOT_TOKEN)
     environments.notify = {};
   };
+  flakes = {
+    agents = true;
+    repository = {
+      visibility = "public";
+      description = "❄️ Nix development environments and templates";
+      homepage_url = "";
+      topics = ["nix" "nix-flake" "nix-template"];
+    };
+    # None yet: ci.yml runs only on pushes to main, so PRs never get its
+    # checks. Add them once it also runs on pull_request.
+    requiredChecks = [];
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # ci.yml's push to the stackptr Cachix cache on main
+      # (CACHIX_AUTH_TOKEN)
+      cachix = {};
+    };
+  };
   rc = {
     requiredChecks = map (host: "build (${host})") [
       "glyph, x86_64-linux, ubuntu-latest"
