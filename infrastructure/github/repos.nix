@@ -75,6 +75,19 @@
       notify = {};
     };
   };
+  # No agents: I download its release assets (chat.md, the agent bundles,
+  # skill zips) and paste them into claude.ai, and Contents write (any agent
+  # token) could replace them without a PR. Change it from a supervised session.
+  llm-profile = {
+    repository = {
+      visibility = "public";
+      description = "Persistent system prompt for use with LLMs";
+      homepage_url = "";
+    };
+    requiredChecks = ["words"];
+    # release.yml's Slack notices (SLACK_BOT_TOKEN)
+    environments.notify = {};
+  };
   rc = {
     requiredChecks = map (host: "build (${host})") [
       "glyph, x86_64-linux, ubuntu-latest"
