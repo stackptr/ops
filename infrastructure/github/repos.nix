@@ -110,6 +110,40 @@
     # nowhere.
     environments.approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
   };
+  # This repo. Its environments hold the credentials every plan and apply run
+  # with: `production`, where applies run, is adopted in a change of its own.
+  ops = {
+    agents = true;
+    # Admins (cloud sessions acting as me included) change main only by
+    # merging a PR, as ops's hand-made ruleset already required
+    adminBypass = "pull_request";
+    repository = {
+      visibility = "public";
+      description = "⚙️ GitOps configuration";
+      homepage_url = "";
+    };
+    # infrastructure.yml's credential-free PR job
+    requiredChecks = ["check"];
+    # Created by hand. It also required a PR and blocked deletion, which
+    # "Require approval" now does (#4)
+    rulesetIds.require_ci = 26143610;
+    environments = {
+      # The reusable approve workflow (teleoid)
+      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
+      # ci.yml's push to Attic on main (ATTIC_TOKEN)
+      attic = {
+        adopt = true;
+        mainPolicyId = 65164068;
+      };
+      # Plans and the daily drift and secrets checks, as teleopsis (its key,
+      # the state credentials and SLACK_BOT_TOKEN are set by hand)
+      plan = {
+        adopt = true;
+        mainPolicyId = 64820060;
+        variables.OPS_APP_CLIENT_ID = "Iv23liHIbNxGMNV2EESv";
+      };
+    };
+  };
   rc = {
     requiredChecks = map (host: "build (${host})") [
       "glyph, x86_64-linux, ubuntu-latest"
