@@ -90,6 +90,7 @@
   };
   flakes = {
     agents = true;
+    agentsInstalled = true;
     repository = {
       visibility = "public";
       description = "❄️ Nix development environments and templates";
