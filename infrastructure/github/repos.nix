@@ -96,16 +96,14 @@
       homepage_url = "";
       topics = ["nix" "nix-flake" "nix-template"];
     };
-    # None yet: ci.yml runs only on pushes to main, so PRs never get its
-    # checks. Add them once it also runs on pull_request.
-    requiredChecks = [];
-    environments = {
-      # The reusable approve workflow (teleoid)
-      approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
-      # ci.yml's push to the stackptr Cachix cache on main
-      # (CACHIX_AUTH_TOKEN)
-      cachix = {};
-    };
+    # ci.yml builds each development environment, on PRs and main
+    requiredChecks = map (target: "build (${target})") [
+      "x86_64-linux, ubuntu-latest"
+      "aarch64-darwin, macos-latest"
+    ];
+    # The reusable approve workflow (teleoid). No cache secret: CI pushes
+    # nowhere.
+    environments.approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
   };
   rc = {
     requiredChecks = map (host: "build (${host})") [
