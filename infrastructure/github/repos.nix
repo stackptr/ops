@@ -114,6 +114,7 @@
   # with.
   ops = {
     agents = true;
+    agentsInstalled = true;
     # Admins (cloud sessions acting as me included) change main only by
     # merging a PR, as ops's hand-made ruleset already required
     adminBypass = "pull_request";
