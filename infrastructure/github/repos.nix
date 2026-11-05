@@ -174,6 +174,7 @@
   };
   "zx.dev" = {
     agents = true;
+    agentsInstalled = true;
     repository = {
       visibility = "public";
       description = "🌐 personal website";
