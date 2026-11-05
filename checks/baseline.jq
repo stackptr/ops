@@ -30,12 +30,46 @@ def expectedRulesets($cfg):
     + (if $cfg.releaseTags // false then ["Release tags"] else [] end)
   end;
 
+# What the rendered config may contain: the blocks, provider and resource
+# types in use. Anything else (a `data` source like `external` or `http`, a
+# `module`, another provider, a provisioner) could run code during `tofu
+# plan`, which runs in `plan` with credentials and no reviewer for config
+# changes. Extend these only on purpose.
+def allowedBlocks: ["import", "provider", "removed", "resource", "terraform", "variable"];
+def allowedTerraform: ["backend", "encryption", "required_providers"];
+def allowedResources: [
+  "github_actions_environment_secret",
+  "github_actions_environment_variable",
+  "github_actions_repository_oidc_subject_claim_customization_template",
+  "github_repository",
+  "github_repository_environment",
+  "github_repository_environment_deployment_policy",
+  "github_repository_ruleset",
+  "github_workflow_repository_permissions"
+];
+
 (.resource.github_repository_ruleset // {} | [.[]]) as $rulesets
 | (.resource.github_workflow_repository_permissions // {} | [.[]]) as $permissions
 | (.resource.github_repository // {} | [.[]]) as $repositories
 | (.resource.github_repository_environment // {} | to_entries) as $environments
 | (.resource.github_repository_environment_deployment_policy // {}) as $policies
 | [
+    ( keys - allowedBlocks | .[]
+      | "top-level \"\(.)\" isn't allowed: data sources, modules and the like run code during the plan"
+    ),
+    ( .terraform // {} | keys - allowedTerraform | .[]
+      | "terraform.\(.) isn't allowed"
+    ),
+    ( (.terraform.required_providers // {} | keys) + (.provider // {} | keys) | unique - ["github"] | .[]
+      | "provider \"\(.)\" isn't allowed: only github"
+    ),
+    ( .resource // {} | keys - allowedResources | .[]
+      | "resource type \(.) isn't allowed; extend allowedResources in checks/baseline.jq on purpose"
+    ),
+    ( .resource // {} | to_entries[] | .key as $type | .value | to_entries[]
+      | select(.value | has("provisioner") or has("connection"))
+      | "\($type).\(.key): provisioners aren't allowed"
+    ),
     ( $rulesets[] as $r
       | ($r.bypass_actors // [])[]
       | select(

@@ -13,6 +13,11 @@ name: Infrastructure
 #   check the baseline's repos for repository-level secrets.
 # Failures on main post to #alerts.
 #
+# `plan` has no reviewer, so `classify` keeps code that hasn't run with
+# credentials before out of it: when main's flake, Justfile, scripts, checks
+# or workflows differ from the last commit whose plan succeeded, the plan and
+# secrets jobs run in `production` instead, after my approval.
+#
 # GitHub credentials are two GitHub Apps installed on the account, teleopsis
 # in `plan` and teleozyme in `production`, each as OPS_APP_CLIENT_ID
 # (variable) and OPS_APP_PRIVATE_KEY (secret). teleopsis has Administration
@@ -82,7 +87,31 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           just diff "$BASE" > config.diff
+
+          # Anyone can seal a value with an environment's public key, and the
+          # ciphertext shows nothing, so name every sealed secret this PR
+          # touches: re-sealing the wrong repo's secret, or a value I didn't
+          # seal, then stands out
+          file=infrastructure/github/sealed.json
+          flatten='[paths(scalars) as $p | {key: ($p | join("/")), value: getpath($p)}] | from_entries'
+          before=$(git show "$BASE:$file" 2>/dev/null | jq "$flatten" || echo '{}')
+          after=$(jq "$flatten" "$file")
+          jq -nr --argjson a "$before" --argjson b "$after" '
+            ($a | keys) as $old | ($b | keys) as $new
+            | [ ($new - $old)[] | "- added: `\(.)`" ]
+              + [ ($old - $new)[] | "- removed: `\(.)`" ]
+              + [ $old[] as $k | select(($b | has($k)) and $a[$k] != $b[$k]) | "- changed: `\($k)`" ]
+            | .[]' > secrets.md
+
           {
+            if [[ -s secrets.md ]]; then
+              echo "### Sealed secrets: $(wc -l < secrets.md | tr -d ' ') touched"
+              echo
+              cat secrets.md
+              echo
+              echo "Confirm I sealed each of these myself (\`just seal\`), into the repo and environment named. The ciphertext can't show who sealed it or what it holds."
+              echo
+            fi
             if [[ -s config.diff ]]; then
               echo "### Rendered config: changed"
               echo
@@ -106,10 +135,83 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file comment.md --edit-last --create-if-none
 
-  plan:
+  # Picks the environment for the jobs that run main's code with
+  # credentials. `plan` has no reviewer, so a run may use it only if the code
+  # those jobs execute (the flake and devShell, Justfile, scripts, checks and
+  # workflows) is unchanged since the last commit whose plan succeeded on
+  # main; otherwise they run in `production`, after my approval. Comparing
+  # against the last successful plan, not the push's parent, means a gated
+  # run I reject stays gated for the daily drift check too. No credentials
+  # here; it fails closed to `production` when it can't tell.
+  classify:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    environment: plan
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      environment: ${{ steps.classify.outputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare against the last successful plan
+        id: classify
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          paths=(.github flake.nix flake.lock Justfile scripts checks)
+          last=""
+          while read -r id sha; do
+            [[ $id == "$RUN_ID" ]] && continue
+            ok=$(gh api "repos/$REPO/actions/runs/$id/jobs" \
+              --jq '[.jobs[] | select(.name == "plan" and .conclusion == "success")] | length')
+            if [[ $ok -gt 0 ]]; then
+              last=$sha
+              break
+            fi
+          done < <(gh api "repos/$REPO/actions/workflows/infrastructure.yml/runs?branch=main&per_page=30" \
+            --jq '.workflow_runs[] | select(.event != "pull_request") | "\(.id) \(.head_sha)"')
+
+          environment=production
+          if [[ -z $last ]]; then
+            reason="no recent run on main has a successful plan to compare against"
+          elif ! git fetch -q --no-tags --depth=1 origin "$last"; then
+            reason="couldn't fetch ${last::7}, the last commit with a successful plan"
+          else
+            changed=$(git diff --name-only "$last" HEAD -- "${paths[@]}")
+            if [[ -z $changed ]]; then
+              environment=plan
+            else
+              reason="code that runs with credentials changed since ${last::7}, the last commit with a successful plan"
+            fi
+          fi
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+
+          if [[ $environment == production ]]; then
+            echo "::warning::Plan and secrets jobs wait for approval in production: $reason"
+            {
+              echo "### Code that runs with credentials changed"
+              echo
+              echo "The plan and secrets jobs wait for approval in \`production\`: $reason."
+              echo "Approving runs this commit's code with credentials, not only the plan. Review it first:"
+              echo
+              if [[ -n ${changed:-} ]]; then
+                while IFS= read -r file; do echo "- \`$file\`"; done <<< "$changed"
+                echo
+                echo "[Diff]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$last...$GITHUB_SHA)"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  plan:
+    needs: classify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.classify.outputs.environment }}
     outputs:
       exitcode: ${{ steps.plan.outputs.exitcode }}
     env:
@@ -119,33 +221,6 @@ jobs:
       TF_VAR_state_passphrase: ${{ secrets.STATE_PASSPHRASE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Approving `production` runs this commit's code, not just the plan. Say
-      # so on the run page when the push changed what runs with credentials.
-      - name: Flag changes to privileged code
-        if: github.event_name == 'push'
-        shell: bash
-        env:
-          BEFORE: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          if [[ $BEFORE =~ ^0+$ ]] || ! git fetch -q --no-tags --depth=1 origin "$BEFORE"; then
-            echo "::warning::Couldn't diff against the previous commit; review the whole push before approving"
-            exit 0
-          fi
-          changed=$(git diff --name-only "$BEFORE" HEAD -- .github flake.nix flake.lock Justfile scripts checks)
-          if [[ -n $changed ]]; then
-            echo "::warning::This push changes code that runs with credentials: $(paste -sd' ' <<< "$changed")"
-            {
-              echo "### Changes to code that runs with credentials"
-              echo
-              echo "Approving \`production\` runs this code, not only the plan. Review it first:"
-              echo
-              while IFS= read -r file; do echo "- \`$file\`"; done <<< "$changed"
-              echo
-              echo "[Diff]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA)"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
 
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
         with:
@@ -277,9 +352,11 @@ jobs:
   # OpenTofu can't see secrets it doesn't manage, so check that no repo in the
   # baseline has repository-level secrets, which every branch's workflows get
   secrets:
+    needs: classify
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    environment: plan
+    # Its shell is the flake's devShell, so it runs main's code too
+    environment: ${{ needs.classify.outputs.environment }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -311,7 +388,7 @@ jobs:
           exit $found
 
   notify:
-    needs: [plan, apply, secrets]
+    needs: [classify, plan, apply, secrets]
     if: failure() && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: plan
