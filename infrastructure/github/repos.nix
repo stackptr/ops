@@ -111,7 +111,7 @@
     environments.approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
   };
   # This repo. Its environments hold the credentials every plan and apply run
-  # with: `production`, where applies run, is adopted in a change of its own.
+  # with.
   ops = {
     agents = true;
     # Admins (cloud sessions acting as me included) change main only by
@@ -131,16 +131,22 @@
       # The reusable approve workflow (teleoid)
       approve.variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
       # ci.yml's push to Attic on main (ATTIC_TOKEN)
-      attic = {
-        adopt = true;
-        mainPolicyId = 65164068;
-      };
+      attic.adopt = true;
       # Plans and the daily drift and secrets checks, as teleopsis (its key,
       # the state credentials and SLACK_BOT_TOKEN are set by hand)
       plan = {
         adopt = true;
-        mainPolicyId = 64820060;
         variables.OPS_APP_CLIENT_ID = "Iv23liHIbNxGMNV2EESv";
+      };
+      # Applies, as teleozyme, after my approval. Where this repo's own apply
+      # runs: its deployment policy is replaced once on import (see the header),
+      # which can't affect the apply already running. Its key and the state
+      # credentials are set by hand.
+      production = {
+        adopt = true;
+        deploy = true;
+        mainPolicyId = 64823845;
+        variables.OPS_APP_CLIENT_ID = "Iv23li6ESrImBQd0fDvU";
       };
     };
   };
