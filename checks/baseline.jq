@@ -88,6 +88,16 @@ def allowedResources: [
       | select(any(expectedRulesets($repos[$r.repository] // {})[]; . == $r.name) | not)
       | "\($r.repository): shouldn't have the \"\($r.name)\" ruleset"
     ),
+    # The admin role bypasses the default branch's rulesets in the repo's
+    # `adminBypass` mode ("pull_request": only by merging a PR), and every
+    # other ruleset always, so a weakened mode stands out
+    ( $rulesets[] as $r
+      | ($r.conditions.ref_name.include | index("~DEFAULT_BRANCH") != null) as $default
+      | (if $default then ($repos[$r.repository].adminBypass // "always") else "always" end) as $mode
+      | ($r.bypass_actors // [])[]
+      | select(.actor_type == "RepositoryRole" and .actor_id == 5 and .bypass_mode != $mode)
+      | "\($r.repository): the admin role must bypass \"\($r.name)\" in \($mode) mode, not \(.bypass_mode)"
+    ),
     ( $rulesets[]
       | select(.name == "Protect default branch" and (.conditions.ref_name.include != ["~DEFAULT_BRANCH"]
           or (.rules | .deletion != true or .non_fast_forward != true)))

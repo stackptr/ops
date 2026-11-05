@@ -36,6 +36,16 @@ Anything that touches state needs `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY
 - Don't run `just apply` or `just destroy` locally; CI applies. Local apply is break-glass only, and only when asked.
 - The repo is public, so plan output in PR comments and Actions logs is public. Mark anything secret as `sensitive` so tofu redacts it.
 
+## Agents' changes
+
+The coding agents (teleomycete) may open PRs here once ops is under its own baseline (#4). This repo holds credentials over every managed repo and the agents' own guardrails, so their PRs, and sessions working on them, follow these rules:
+
+- Agents never run `just init`, `plan`, `apply` or `destroy`, or `tofu` with credentials. The recipes refuse anything but a clean `origin/main` (`OPS_ALLOW_BRANCH=1` is for my own branches, never an agent's), and CI plans only main.
+- Agents never edit `sealed.json`. Anyone can seal a value with an environment's public key, so I seal every secret myself.
+- A PR that changes `flake.nix` or `flake.lock` (the provider's supply chain), or `repos.nix`, `baseline.nix`, `apps.nix` or `checks/baseline.jq` (the guardrails), says why in its description, and I review it as a policy change.
+- Required checks match by name only: any job named `check` satisfies "Require CI", including one a PR adds in a new workflow that passes trivially. Read every `.github/` change before approving. Agents can't push one without Workflows, which they don't have (stackptr/rc#763 would change that).
+- Review an agent's PR from its rendered-config diff in the PR comment, not by building its branch locally: `just diff` builds it, and on macOS Nix doesn't sandbox builds by default.
+
 ## State and credentials
 
 - State is in R2, locked with `use_lockfile`, and encrypted with OpenTofu state encryption (pbkdf2 + AES-GCM, enforced for state and plans). Losing the passphrase means losing the state.

@@ -52,6 +52,8 @@
       "dependabot needs agents: it bypasses only \"Agent branches\""
       ++ lib.optional ((cfg.agentsInstalled or false) && !(agents cfg))
       "agentsInstalled needs agents"
+      ++ lib.optional (!(lib.elem (cfg.adminBypass or "always") ["always" "pull_request"]))
+      "adminBypass must be \"always\" or \"pull_request\""
       ++ lib.optionals (private cfg) (
         lib.optional (agents cfg) "a private repo can't have agents: it gets no rulesets to guard them"
         ++ lib.optional ((cfg.requiredChecks or []) != []) "a private repo gets no rulesets, so requiredChecks would do nothing"
@@ -76,6 +78,12 @@
     actor_type = "RepositoryRole";
     bypass_mode = "always";
   };
+
+  # The admin role on the default branch's rulesets: with `adminBypass =
+  # "pull_request"`, admins (cloud sessions acting as me included) bypass them
+  # only by merging a PR, never by pushing to the default branch. Rulesets on
+  # other branches keep `always`, so I can still push any branch.
+  defaultBranchAdmin = cfg: admin // {bypass_mode = cfg.adminBypass or "always";};
 
   app = name: {
     actor_id = apps.${name}.id;
@@ -108,7 +116,7 @@
             })
             cfg.requiredChecks;
         };
-        bypass_actors = [admin];
+        bypass_actors = [(defaultBranchAdmin cfg)];
       };
     };
 
@@ -125,7 +133,7 @@
             require_last_push_approval = true;
           };
         };
-        bypass_actors = [admin] ++ updater;
+        bypass_actors = [(defaultBranchAdmin cfg)] ++ updater;
       };
 
       agent_branches = {
@@ -187,7 +195,7 @@
           deletion = true;
           non_fast_forward = true;
         };
-        bypass_actors = [admin];
+        bypass_actors = [(defaultBranchAdmin cfg)];
       };
     };
   in
