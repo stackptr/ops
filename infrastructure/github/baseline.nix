@@ -25,6 +25,9 @@
 #   (Contents: write) can't push there.
 #   Deletions and force-pushes stay allowed, for agents rebasing.
 #
+# - Protect default branch (default branch), for repos with neither
+#   `requiredChecks` nor `agents`, which would otherwise have no ruleset
+#   there: no deletion or force-push. Only the admin role bypasses it.
 # - Release tags (every tag), for repos with `releaseTags`: only the admin
 #   role creates, moves or deletes tags, so agents (Contents: write) can't tag
 #   unmerged code as a release that callers' Dependabot would then offer.
@@ -173,8 +176,22 @@
         bypass_actors = [admin];
       };
     };
+
+    # A default branch nothing else guards still can't be deleted or
+    # force-pushed
+    protectDefaultBranch = lib.optionalAttrs (requireCi == {} && agentRulesets == {}) {
+      protect_default_branch = {
+        name = "Protect default branch";
+        conditions.ref_name = defaultBranch;
+        rules = {
+          deletion = true;
+          non_fast_forward = true;
+        };
+        bypass_actors = [admin];
+      };
+    };
   in
-    lib.optionalAttrs (!(private cfg)) (requireCi // agentRulesets // releaseTags);
+    lib.optionalAttrs (!(private cfg)) (requireCi // agentRulesets // releaseTags // protectDefaultBranch);
 
   # OpenTofu resource names can't contain dots (zx.dev)
   id = lib.replaceStrings ["."] ["_"];

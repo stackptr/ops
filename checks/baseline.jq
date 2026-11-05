@@ -21,13 +21,15 @@ def allowed($name; $cfg):
 
 # The rulesets a repo gets: none if private (they need GitHub Pro); "Require
 # CI" if it has checks to require; the agents' three if agents work on it;
-# "Release tags" if its tags are releases
+# "Release tags" if its tags are releases; "Protect default branch" if
+# nothing else guards its default branch
 def expectedRulesets($cfg):
   if ($cfg.repository.visibility // "public") != "public" then []
   else
     (if ($cfg.requiredChecks // []) != [] then ["Require CI"] else [] end)
     + (if $cfg.agents // false then ["Require approval", "Agent branches", "Agent-only branches"] else [] end)
     + (if $cfg.releaseTags // false then ["Release tags"] else [] end)
+    + (if ($cfg.requiredChecks // []) == [] and ($cfg.agents // false | not) then ["Protect default branch"] else [] end)
   end;
 
 (.resource.github_repository_ruleset // {} | [.[]]) as $rulesets
@@ -51,6 +53,11 @@ def expectedRulesets($cfg):
     ( $rulesets[] as $r
       | select(any(expectedRulesets($repos[$r.repository] // {})[]; . == $r.name) | not)
       | "\($r.repository): shouldn't have the \"\($r.name)\" ruleset"
+    ),
+    ( $rulesets[]
+      | select(.name == "Protect default branch" and (.conditions.ref_name.include != ["~DEFAULT_BRANCH"]
+          or (.rules | .deletion != true or .non_fast_forward != true)))
+      | "\(.repository): \"Protect default branch\" must block deleting and force-pushing the default branch"
     ),
     ( $rulesets[]
       | select(.name == "Release tags" and (.target != "tag" or .conditions.ref_name.include != ["~ALL"]
