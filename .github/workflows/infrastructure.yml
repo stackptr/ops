@@ -11,7 +11,9 @@ name: Infrastructure
 #   approved in `production`.
 # - Daily: plan only, failing if live infrastructure differs from main, and
 #   check the baseline's repos for repository-level secrets.
-# Failures on main post to #alerts.
+# Failures on main post to #alerts, and so does each wait for my approval,
+# with what to review, so approving from Slack or a phone isn't approving
+# blind.
 #
 # `plan` has no reviewer, so `classify` keeps code that hasn't run with
 # credentials before out of it: when main's flake, Justfile, scripts, checks
@@ -153,6 +155,9 @@ jobs:
       actions: read
     outputs:
       environment: ${{ steps.classify.outputs.environment }}
+      reason: ${{ steps.classify.outputs.reason }}
+      changed: ${{ steps.classify.outputs.changed }}
+      last: ${{ steps.classify.outputs.last }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -194,6 +199,12 @@ jobs:
           echo "environment=$environment" >> "$GITHUB_OUTPUT"
 
           if [[ $environment == production ]]; then
+            # For announce-gate's message
+            {
+              echo "reason=$reason"
+              echo "changed=$(paste -sd' ' <<< "${changed:-}")"
+              echo "last=$last"
+            } >> "$GITHUB_OUTPUT"
             echo "::warning::Plan and secrets jobs wait for approval in production: $reason"
             {
               echo "### Code that runs with credentials changed"
@@ -216,6 +227,8 @@ jobs:
     environment: ${{ needs.classify.outputs.environment }}
     outputs:
       exitcode: ${{ steps.plan.outputs.exitcode }}
+      summary: ${{ steps.summary.outputs.summary }}
+      changes: ${{ steps.summary.outputs.changes }}
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.STATE_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.STATE_SECRET_ACCESS_KEY }}
@@ -294,6 +307,23 @@ jobs:
             echo "::error::The plan destroys or replaces repositories: $(paste -sd' ' <<< "$destroyed")"
             exit 1
           fi
+
+      # For announce-apply's message: tofu's one-line count, and each changed
+      # resource with its action
+      - name: Summarize plan
+        id: summary
+        if: steps.plan.outputs.exitcode == '2' && github.event_name != 'schedule'
+        run: |
+          summary=$(sed -n 's/^Plan: \(.*\)\.$/\1/p' plan.txt | head -n 1)
+          changes=$(tofu -chdir=tofu show -json tfplan | jq -r '
+            [.resource_changes[]?
+              | select(.change.actions | . != ["no-op"] and . != ["read"])
+              | "\(.change.actions | if length > 1 then "replace" else .[0] end) `\(.address)`"]
+            | (.[:15] | join(", ")) + (if length > 15 then ", and \(length - 15) more" else "" end)')
+          {
+            echo "summary=${summary:-changes to outputs only}"
+            echo "changes=$changes"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload plan
         if: steps.plan.outputs.exitcode == '2' && github.event_name != 'schedule'
@@ -404,8 +434,96 @@ jobs:
           done
           exit $found
 
+  # The two announce jobs post to #alerts while a job waits for my approval in
+  # `production`, with what to review, since GitHub's Slack app and GitHub
+  # Mobile approve without showing the run page. Like notify, they hold only
+  # the Slack token and run nothing from the repo: no checkout, no devShell.
+
+  # The plan and secrets jobs wait because classify gated the run
+  announce-gate:
+    needs: classify
+    if: needs.classify.outputs.environment == 'production'
+    runs-on: ubuntu-latest
+    environment: plan
+    permissions: {}
+    steps:
+      - name: Build message
+        id: message
+        shell: bash
+        env:
+          REASON: ${{ needs.classify.outputs.reason }}
+          CHANGED: ${{ needs.classify.outputs.changed }}
+          LAST: ${{ needs.classify.outputs.last }}
+        run: |
+          set -euo pipefail
+          esc() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<< "$1"; }
+          repo_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+          subject=$(jq -r '(.head_commit.message // "") | split("\n")[0] // ""' "$GITHUB_EVENT_PATH")
+          delim="fields_$RANDOM$RANDOM$RANDOM"
+          {
+            echo "fields<<$delim"
+            if [[ -n $CHANGED ]]; then
+              files=$(for f in $CHANGED; do printf "\`%s\`, " "$(esc "$f")"; done)
+              echo "Changed: ${files%, } (<$repo_url/compare/$LAST...$GITHUB_SHA|diff>)"
+            fi
+            echo "Reason: $(esc "$REASON")"
+            if [[ -n $subject ]]; then
+              echo "Commit: <$repo_url/commit/$GITHUB_SHA|$(esc "$subject")>"
+            fi
+            echo "Approving: runs this commit's code with credentials, not only the plan"
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: stackptr/actions/slack-notify@8f86bf2d6b69d2225bee5726b080fc6ce1066bd9 # v1.0.0
+        with:
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel: "#alerts"
+          status: info
+          title-prefix: Infrastructure plan waiting for approval, code that runs with credentials changed
+          fields: ${{ steps.message.outputs.fields }}
+
+  # apply waits with a saved plan
+  announce-apply:
+    needs: plan
+    if: needs.plan.outputs.exitcode == '2' && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    environment: plan
+    permissions: {}
+    steps:
+      - name: Build message
+        id: message
+        shell: bash
+        env:
+          SUMMARY: ${{ needs.plan.outputs.summary }}
+          CHANGES: ${{ needs.plan.outputs.changes }}
+        run: |
+          set -euo pipefail
+          esc() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<< "$1"; }
+          repo_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+          subject=$(jq -r '(.head_commit.message // "") | split("\n")[0] // ""' "$GITHUB_EVENT_PATH")
+          delim="fields_$RANDOM$RANDOM$RANDOM"
+          {
+            echo "fields<<$delim"
+            echo "Plan: $(esc "$SUMMARY")"
+            if [[ -n $CHANGES ]]; then
+              echo "Resources: $(esc "$CHANGES")"
+            fi
+            if [[ -n $subject ]]; then
+              echo "Commit: <$repo_url/commit/$GITHUB_SHA|$(esc "$subject")>"
+            fi
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: stackptr/actions/slack-notify@8f86bf2d6b69d2225bee5726b080fc6ce1066bd9 # v1.0.0
+        with:
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel: "#alerts"
+          status: info
+          title-prefix: Infrastructure apply waiting for approval
+          fields: ${{ steps.message.outputs.fields }}
+
   notify:
-    needs: [classify, plan, apply, secrets]
+    needs: [classify, plan, apply, secrets, announce-gate, announce-apply]
     if: failure() && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: plan
