@@ -12,7 +12,7 @@ Infrastructure as code for my personal GitHub and cloud services. Terranix modul
 - `checks/baseline.jq`: the baseline's invariants, checked over the rendered config by `nix flake check`
 - `scripts/seal.py`: seals a secret to a GitHub public key; packaged with PyNaCl as the flake's `seal`, which `just seal` runs through `nix run`, so it works outside the dev shell
 - `tofu/`: OpenTofu working directory; `config.tf.json` is generated (gitignored)
-- `.github/workflows/infrastructure.yml`: credential-free checks and a rendered-config diff on PRs; plan, then approved apply, on main; daily drift check
+- `.github/workflows/infrastructure.yml`: credential-free checks and a rendered-config diff on PRs; plan, then approved apply, on main; daily drift check. Each wait for my approval posts to #alerts with what to review (`announce-gate`, `announce-apply`), since GitHub's Slack app and GitHub Mobile approve without showing the run page
 - `.github/workflows/ci.yml`: builds the config; on main only, pushes it to the Attic cache from the main-only `attic` environment, with the attic client from a fixed rev (bump it by hand)
 
 ## Common Commands
@@ -32,7 +32,7 @@ Anything that touches state needs `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY
 ## Guardrails
 
 - Merging to main plans against live infrastructure, and the `apply` job applies that saved plan once I approve it in the `production` environment. Don't merge a PR, or approve a deployment, unless asked.
-- Approving `production` runs that commit's code, not just its plan. `plan` has no reviewer, so the workflow's `classify` job keeps unvetted code out of it: when `.github/`, `flake.*`, `Justfile`, `scripts/` or `checks/` differ from the last commit whose plan succeeded on main, the plan and secrets jobs run in `production` instead and wait for my approval, and the run page lists the changed files with a diff. Review them before approving: approving runs them with credentials. A rejected run stays gated, since the next run (the daily drift check included) compares against the same commit; it fails closed to `production` when it can't find one.
+- Approving `production` runs that commit's code, not just its plan. `plan` has no reviewer, so the workflow's `classify` job keeps unvetted code out of it: when `.github/`, `flake.*`, `Justfile`, `scripts/` or `checks/` differ from the last commit whose plan succeeded on main, the plan and secrets jobs run in `production` instead and wait for my approval, and the run page and #alerts list the changed files with a diff. Review them before approving: approving runs them with credentials. A rejected run stays gated, since the next run (the daily drift check included) compares against the same commit; it fails closed to `production` when it can't find one.
 - Don't run `just apply` or `just destroy` locally; CI applies. Local apply is break-glass only, and only when asked.
 - The repo is public, so plan output in PR comments and Actions logs is public. Mark anything secret as `sensitive` so tofu redacts it.
 
