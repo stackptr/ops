@@ -14,12 +14,12 @@
 # installed; elsewhere only I push, and they would guard against nobody:
 # - Require approval (default branch): a PR with one approval of its latest
 #   push; no force-pushes or deletions. The admin role and, with
-#   `updaterBypass`, teleotrope bypass it.
+#   `flakeUpdates`, teleotrope bypass it.
 # - Agent branches (every branch but the default and agents/**): only bypass
 #   actors create, update or delete them, so agents can't push to the branch
 #   behind my PR, which teleoid would then approve. The admin role and, with
 #   `dependabot`, Dependabot (it pushes `dependabot/**` branches) and, with
-#   `updaterBypass`, teleotrope bypass it.
+#   `flakeUpdates`, teleotrope bypass it.
 # - Agent-only branches (agents/**): only the admin role and, with
 #   `agentsInstalled`, teleomycete create or update them, so teleoid
 #   (Contents: write) can't push there.
@@ -46,8 +46,10 @@
   # Options that contradict each other fail evaluation
   repos = lib.mapAttrs (repo: cfg: let
     problems =
-      lib.optional ((cfg.updaterBypass or false) && !(agents cfg))
-      "updaterBypass needs agents: it bypasses only the agents' rulesets"
+      lib.optional ((cfg.flakeUpdates or false) && !(agents cfg))
+      "flakeUpdates needs agents: teleotrope bypasses only the agents' rulesets"
+      ++ lib.optional ((cfg.flakeUpdates or false) && (cfg.requiredChecks or []) == [])
+      "flakeUpdates needs requiredChecks that build the flake: they're the only gate on what teleotrope merges"
       ++ lib.optional ((cfg.dependabot or false) && !(agents cfg))
       "dependabot needs agents: it bypasses only \"Agent branches\""
       ++ lib.optional ((cfg.agentsInstalled or false) && !(agents cfg))
@@ -62,8 +64,20 @@
       );
   in
     if problems == []
-    then cfg
+    then withUpdate cfg
     else throw "repos.nix: ${repo}: ${lib.concatStringsSep "; " problems}") (import ./repos.nix);
+
+  # A repo with `flakeUpdates` gets the `update` environment its update.yml
+  # reads teleotrope's credentials from: UPDATER_CLIENT_ID here, and
+  # UPDATER_PRIVATE_KEY sealed in ./sealed.json. repos.nix may still set the
+  # environment's other options (`adopt`).
+  withUpdate = cfg:
+    if cfg.flakeUpdates or false
+    then
+      lib.recursiveUpdate cfg {
+        environments.update.variables.UPDATER_CLIENT_ID = apps.teleotrope.clientId;
+      }
+    else cfg;
   apps = import ./apps.nix;
 
   # stackptr's user ID
@@ -102,7 +116,7 @@
   private = cfg: (cfg.repository.visibility or "public") != "public";
 
   rulesets = cfg: let
-    updater = lib.optional (cfg.updaterBypass or false) (app "teleotrope");
+    updater = lib.optional (cfg.flakeUpdates or false) (app "teleotrope");
     requireCi = lib.optionalAttrs ((cfg.requiredChecks or []) != []) {
       require_ci = {
         name = "Require CI";
