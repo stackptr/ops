@@ -10,7 +10,7 @@
 # (teleoid included) becomes one by accident; teleomycete bypasses only
 # "Agent-only branches", and only once installed (`agentsInstalled`).
 def allowed($name; $cfg):
-  ( if $cfg.updaterBypass // false then [$apps.teleotrope.id] else [] end ) as $updater
+  ( if $cfg.flakeUpdates // false then [$apps.teleotrope.id] else [] end ) as $updater
   | {
       "Require CI": [],
       "Require approval": $updater,
@@ -121,6 +121,11 @@ def allowedResources: [
         ( select([$environments[] | select(.value.repository == $repo and .value.environment == "approve")] | length != 1)
           | "\($repo): agents need an `approve` environment (teleoid's key, for approve.yml)"
         )
+    ),
+    # teleotrope's credentials for update.yml, and only where it may merge
+    ( $repos | to_entries[] | select(.value.flakeUpdates // false) | .key as $repo
+      | select([$environments[] | select(.value.repository == $repo and .value.environment == "update")] | length != 1)
+      | "\($repo): flakeUpdates needs an `update` environment (teleotrope's key, for update.yml)"
     ),
     ( $repos | keys[] as $repo
       | select(

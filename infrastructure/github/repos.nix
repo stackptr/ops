@@ -32,13 +32,15 @@
 # - releaseTags: the repo's tags are releases that other repos pin (and their
 #   Dependabot upgrades to), so only the admin role may create, move or
 #   delete tags ("Release tags"). Public repos only.
-# - updaterBypass (needs agents): teleotrope may skip "Require approval" and "Agent
-#   branches" to merge flake updates. Only for repos whose required checks
-#   build the flake (stackptr/rc#768). The bypass alone doesn't make update
-#   PRs auto-merge: auto-merge still waits for an approval, so the update
-#   workflow has to wait for the checks and merge with
-#   `gh pr merge --admin --match-head-commit`, as rc's update.yml does
-#   (stackptr/rc#772, stackptr/rc#773).
+# - flakeUpdates (needs agents and requiredChecks): teleotrope updates the
+#   repo's flake.lock daily and merges the PR once the required checks pass,
+#   from an update.yml calling stackptr/actions's reusable update-flake.yml.
+#   The repo gets an `update` environment with UPDATER_CLIENT_ID (seal
+#   UPDATER_PRIVATE_KEY into it), and teleotrope may skip "Require approval"
+#   and "Agent branches". Only for repos whose required checks build or check
+#   the flake (stackptr/rc#768): they're the only gate on what it merges.
+#   Install teleotrope on the repo first: GitHub rejects an app as a bypass
+#   actor until it's installed.
 # - oidc: the repo's workflows use OIDC; subjects then include the ref, so
 #   cloud trust policies can match ref:refs/heads/main
 # - environments.<name> (public repos only, without GitHub Pro):
@@ -60,6 +62,7 @@
 {
   actions = {
     agents = true;
+    flakeUpdates = true;
     # Callers pin its releases; release.yml publishes one per tag
     releaseTags = true;
     agentsInstalled = true;
@@ -95,6 +98,7 @@
   };
   flakes = {
     agents = true;
+    flakeUpdates = true;
     agentsInstalled = true;
     repository = {
       visibility = "public";
@@ -166,7 +170,7 @@
       agent_branches = 25753101;
       agent_only_branches = 26123828;
     };
-    updaterBypass = true;
+    flakeUpdates = true;
     agents = true;
     agentsInstalled = true;
     dependabot = true;
@@ -177,15 +181,13 @@
       topics = ["dotfiles" "home-manager" "nix" "nix-darwin" "nix-flake" "nixos" "nixos-configuration"];
     };
     environments = {
-      # App keys for approve.yml (teleoid) and update.yml (teleotrope)
+      # App keys for approve.yml (teleoid) and update.yml (teleotrope;
+      # `flakeUpdates` sets its client ID)
       approve = {
         adopt = true;
         variables.APPROVER_CLIENT_ID = "Iv23likJzKNAteBwoYdc";
       };
-      update = {
-        adopt = true;
-        variables.UPDATER_CLIENT_ID = "Iv23liMg01Js73TxJmX4";
-      };
+      update.adopt = true;
       # deploy.yml, one per host
       glyph = {
         adopt = true;
@@ -217,6 +219,7 @@
   };
   "zx.dev" = {
     agents = true;
+    flakeUpdates = true;
     agentsInstalled = true;
     repository = {
       visibility = "public";

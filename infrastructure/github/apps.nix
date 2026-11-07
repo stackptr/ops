@@ -29,10 +29,13 @@
     permissions = "GitHub-managed";
   };
 
-  # Opens and merges flake updates (update.yml); bypasses "Require approval"
-  # and "Agent branches" on repos with `updaterBypass`.
+  # Opens and merges flake updates (each repo's update.yml, calling
+  # stackptr/actions's reusable update-flake.yml). Installed on the repos with
+  # `flakeUpdates`, which bypass "Require approval" and "Agent branches" for
+  # it and get an `update` environment with `clientId` as UPDATER_CLIENT_ID.
   teleotrope = {
     id = 5445588;
+    clientId = "Iv23liMg01Js73TxJmX4";
     permissions = "Contents and Pull requests read/write";
   };
 
