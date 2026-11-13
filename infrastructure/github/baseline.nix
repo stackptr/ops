@@ -15,14 +15,14 @@
 # - Require approval (default branch): a PR with one approval of its latest
 #   push; no force-pushes or deletions. The admin role and, with
 #   `flakeUpdates`, teleotrope bypass it.
-# - Agent branches (every branch but the default and agents/**): only bypass
-#   actors create, update or delete them, so agents can't push to the branch
-#   behind my PR, which teleoid would then approve. The admin role and, with
-#   `dependabot`, Dependabot (it pushes `dependabot/**` branches) and, with
-#   `flakeUpdates`, teleotrope bypass it.
-# - Agent-only branches (agents/**): only the admin role and, with
-#   `agentsInstalled`, teleomycete create or update them, so teleoid
-#   (Contents: write) can't push there.
+# - Agent branches (every branch but the default and agents/, nested names
+#   included): only bypass actors create, update or delete them, so agents
+#   can't push to the branch behind my PR, which teleoid would then approve.
+#   The admin role and, with `dependabot`, Dependabot (it pushes
+#   `dependabot/**` branches) and, with `flakeUpdates`, teleotrope bypass it.
+# - Agent-only branches (agents/, nested names included): only the admin
+#   role and, with `agentsInstalled`, teleomycete create or update them, so
+#   teleoid (Contents: write) can't push there.
 #   Deletions and force-pushes stay allowed, for agents rebasing.
 #
 # - Protect default branch (default branch), for repos with neither
@@ -110,7 +110,12 @@
     exclude = [];
   };
 
-  agentBranches = "refs/heads/agents/**";
+  # GitHub matches ref patterns with fnmatch in pathname mode, where a
+  # trailing `**` stops at `/` like `*`: `agents/**` matched
+  # `agents/fix-foo` but not `agents/glyph/fix-foo`, which fell under "Agent
+  # branches" instead. `**/` matches zero or more path segments, so this
+  # covers both.
+  agentBranches = "refs/heads/agents/**/*";
 
   agents = cfg: cfg.agents or false;
   private = cfg: (cfg.repository.visibility or "public") != "public";
@@ -177,7 +182,7 @@
         };
         # GitHub accepts an app as a bypass actor only once it's installed
         # on the repo, so teleomycete joins in a follow-up (`agentsInstalled`).
-        # Until then nobody but the admin role pushes agents/**.
+        # Until then nobody but the admin role pushes agents/ branches.
         bypass_actors = [admin] ++ lib.optional (cfg.agentsInstalled or false) (app "teleomycete");
       };
     };
