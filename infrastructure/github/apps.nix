@@ -70,4 +70,13 @@
     id = null;
     permissions = "Administration, Environments and Actions read/write; Secrets read";
   };
+
+  # Logs GitHub Actions history to Loki from glyph (stackptr/rc#865), which
+  # holds its key: not sealed anywhere. Installed on every repository, with
+  # no webhook (stackptr/rc#866 would add one). Never a bypass actor.
+  teleometer = {
+    id = 5807103;
+    clientId = "Iv23liroeutHTNeLtwl5";
+    permissions = "Actions and Checks read";
+  };
 }
