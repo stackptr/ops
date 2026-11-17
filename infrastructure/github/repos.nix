@@ -155,14 +155,18 @@
     };
   };
   rc = {
-    requiredChecks = map (host: "build (${host})") [
-      "glyph, x86_64-linux, ubuntu-latest"
-      "Rhizome, aarch64-darwin, macos-latest"
-      "Stroma, aarch64-darwin, macos-latest"
-      "lobtop, aarch64-darwin, macos-latest"
-      "spore, x86_64-linux, ubuntu-latest"
-      "zeta, aarch64-linux, ubuntu-24.04-arm"
-    ];
+    requiredChecks =
+      map (host: "build (${host})") [
+        "glyph, x86_64-linux, ubuntu-latest"
+        "spore, x86_64-linux, ubuntu-latest"
+        "zeta, aarch64-linux, ubuntu-24.04-arm"
+      ]
+      # The macOS hosts are evaluated on Linux on every PR, and built (in one
+      # job, on a slow-to-start macOS runner) only on PRs that change
+      # flake.lock or ci.yml, which includes every flake update teleotrope
+      # merges; elsewhere build (darwin) is skipped, which passes
+      # (stackptr/rc#864)
+      ++ ["eval (darwin)" "build (darwin)"];
     # Created by hand (stackptr/rc#733, stackptr/rc#784)
     rulesetIds = {
       require_ci = 10414171;
